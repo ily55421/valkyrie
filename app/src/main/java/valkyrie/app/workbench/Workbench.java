@@ -1,25 +1,19 @@
 package valkyrie.app.workbench;
 
-import javafx.collections.ListChangeListener;
 import javafx.scene.Node;
-import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.input.ContextMenuEvent;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import valkyrie.app.Application;
 import valkyrie.app.assets.Assets;
 import valkyrie.app.event.bus.Event;
 import valkyrie.app.event.bus.EventBus;
 import valkyrie.app.event.bus.EventListener;
-import valkyrie.app.event.workbench.CloseNavigationPaneEvent;
-import valkyrie.app.event.workbench.CloseWorkbenchTabEvent;
-import valkyrie.app.event.workbench.OpenNavigationPaneEvent;
-import valkyrie.app.event.workbench.OpenTabEvent;
+import valkyrie.app.event.workbench.*;
 import valkyrie.app.exception.ApplicationException;
+import valkyrie.app.widgets.VkContextMenu;
 import valkyrie.app.widgets.VkTabPane;
 import valkyrie.app.widgets.dialog.VkDialogHelper;
 import valkyrie.utils.collection.Lists;
@@ -29,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static valkyrie.utils.collection.Lists.first;
-import static valkyrie.utils.string.StaticLibrary.streq;
+import static valkyrie.utils.string.StrStaticImports.streq;
 
 /**
  * @author Luo Tiansheng
@@ -39,10 +33,10 @@ import static valkyrie.utils.string.StaticLibrary.streq;
 public class Workbench extends VBox implements EventListener
 {
         private final VkTabPane tabPane = new VkTabPane();
-        private final Tab navigationTab = new Tab("首页");
+        private final Tab navigationTab = new Tab("列表");
         private final Map<Object, List<Tab>> tabPaneManager = Maps.newHashMap();
 
-        private final ContextMenu tabPaneContextMenu = new ContextMenu();
+        private final VkContextMenu tabPaneContextMenu = new VkContextMenu();
         private final MenuItem closeCurrent = new MenuItem("关闭当前");
         private final MenuItem closeAll = new MenuItem("关闭所有");
         private final MenuItem closeLeft = new MenuItem("关闭左侧");
@@ -53,7 +47,7 @@ public class Workbench extends VBox implements EventListener
 
         public Workbench()
         {
-                navigationTab.setGraphic(Assets.use("home"));
+                navigationTab.setGraphic(Assets.use("list"));
 
                 setStyle("-fx-background-color: #ffffff;");
                 getChildren().add(tabPane);
@@ -64,10 +58,12 @@ public class Workbench extends VBox implements EventListener
                 setupHomeTab();
 
                 // 订阅事件
-                EventBus.subscribe(OpenTabEvent.class, this);
-                EventBus.subscribe(CloseWorkbenchTabEvent.class, this);
-                EventBus.subscribe(OpenNavigationPaneEvent.class, this);
-                EventBus.subscribe(CloseNavigationPaneEvent.class, this);
+                EventBus.subscribe(this,
+                        OpenTabEvent.class,
+                        CloseWorkbenchTabEvent.class,
+                        OpenNavigationPaneEvent.class,
+                        CloseNavigationPaneEvent.class,
+                        RegisterTabManagerEvent.class);
         }
 
         private void setupTabPane()
@@ -88,21 +84,6 @@ public class Workbench extends VBox implements EventListener
                                 node = node.getParent();
                         }
                 });
-
-                tabPane.getTabs().addListener((ListChangeListener<Tab>) change -> {
-                        while (change.next()) {
-                                if (change.wasRemoved()) {
-                                        for (Tab tab : change.getRemoved())
-                                                handleTabRemoveEvent(tab);
-                                }
-                        }
-                });
-        }
-
-        private void handleTabRemoveEvent(Tab tab)
-        {
-                if (tab != null && tab.getContent() instanceof ScriptEditor editor)
-                        editor.close();
         }
 
         private void setupContextMenu()
@@ -114,13 +95,6 @@ public class Workbench extends VBox implements EventListener
                         closeLeft,
                         closeRight,
                         closeOther);
-
-                Application.runLater((stage, scene) -> {
-                        scene.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
-                                if (tabPaneContextMenu.isShowing())
-                                        tabPaneContextMenu.hide();
-                        });
-                });
         }
 
         private void setupHomeTab()
@@ -157,7 +131,7 @@ public class Workbench extends VBox implements EventListener
                         tabPane.select(tab);
                 });
 
-                tabPaneContextMenu.show(tabPane, e.getScreenX(), e.getScreenY());
+                tabPaneContextMenu.show(e.getScreenX(), e.getScreenY());
         }
 
         @Override
@@ -169,6 +143,7 @@ public class Workbench extends VBox implements EventListener
                                 case CloseWorkbenchTabEvent e -> handleCloseTabEvent(e);
                                 case OpenNavigationPaneEvent e -> handleSetNavigationPaneEvent(e);
                                 case CloseNavigationPaneEvent e -> handleUnsetNavigationPaneEvent(e);
+                                case RegisterTabManagerEvent e -> handleRegisterTabManagerEvent(e);
                                 default -> throw new ApplicationException("unsupported event type");
                         }
                 } catch (Exception e) {
@@ -223,5 +198,11 @@ public class Workbench extends VBox implements EventListener
                         navigationTab.setContent(null);
                         navigationTabOwner = null;
                 }
+        }
+
+        private void handleRegisterTabManagerEvent(RegisterTabManagerEvent e)
+        {
+                tabPaneManager.computeIfAbsent(e.getOwner(), tabPane -> Lists.newArrayList())
+                        .add(e.getTab());
         }
 }

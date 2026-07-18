@@ -8,6 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import valkyrie.driver.api.*;
 import valkyrie.driver.api.exception.DriverException;
+import valkyrie.driver.api.node.DBNode;
+import valkyrie.driver.api.node.DBNodeKind;
+import valkyrie.driver.api.node.DBNodePath;
 import valkyrie.driver.api.sql.SQL;
 import valkyrie.driver.api.sql.SQLCommandType;
 import valkyrie.driver.suggestion.Suggestion;
@@ -15,7 +18,6 @@ import valkyrie.utils.collection.Lists;
 import valkyrie.utils.collection.Maps;
 import valkyrie.utils.collection.Sets;
 
-import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -25,7 +27,7 @@ import static valkyrie.utils.TypeConverter.atobool;
 import static valkyrie.utils.TypeConverter.atos;
 import static valkyrie.utils.collection.Lists.first;
 import static valkyrie.utils.collection.Lists.second;
-import static valkyrie.utils.string.StaticLibrary.*;
+import static valkyrie.utils.string.StrStaticImports.*;
 
 /**
  * MySQL 驱动层实现
@@ -33,12 +35,12 @@ import static valkyrie.utils.string.StaticLibrary.*;
  * @author Luo Tiansheng
  * @since 2026/4/11
  */
-@SuppressWarnings("SqlSourceToSinkFlow")
+@SuppressWarnings({"SqlSourceToSinkFlow", "DuplicatedCode"})
 public class MySQLDriver extends Driver
 {
         private static final Logger LOG = LoggerFactory.getLogger(MySQLDriver.class);
 
-        public MySQLDriver(DataSource dataSource)
+        public MySQLDriver(VkDataSource dataSource)
         {
                 super(dataSource);
         }
@@ -50,6 +52,25 @@ public class MySQLDriver extends Driver
         }
 
         @Override
+        public List<DBNode> getNodeHierarchy()
+        {
+                List<DBNode> catalogNodes = Lists.newArrayList();
+                MySQLMetadataProvider metadataProvider = new MySQLMetadataProvider(this);
+
+                List<String> catalogs = getCatalogs();
+                for (String catalog : catalogs)
+                        catalogNodes.add(new MySQLCatalogNode(catalog, metadataProvider));
+
+                return catalogNodes;
+        }
+
+        @Override
+        public DBNodePath getNodeHierarchyPath()
+        {
+                return new DBNodePath(DBNodeKind.CATALOG, null);
+        }
+
+        @Override
         protected Dialect createDialect()
         {
                 return new MySQLDialect();
@@ -58,21 +79,26 @@ public class MySQLDriver extends Driver
         @Override
         public String showCreateTable(Session session, String table)
         {
-                DataGrid dataGrid = execute(session, new SQL(
+                QueryResult queryResult = execute(session, new SQL(
                         fmt("SHOW CREATE TABLE %s;", dialect.quote(table))
                 ));
 
-                return first(dataGrid.getRows()).get(1);
+                return first(queryResult.getRows()).get(1);
         }
 
         @Override
-        public List<Suggestion> getSuggestion(Session session)
+        public List<Suggestion> getSuggestions(Session session)
         {
                 Set<Suggestion> ret = Sets.newHashSet();
 
                 ret.addAll(MySQLSuggestions.VALUES);
 
-                DataGrid grid = execute(session, """
+                /* 表信息 */
+                List<Table> tables = getTables(session);
+                ret.addAll(tables.stream().map(t -> Suggestion.ofClass(t.getName(), t.getComment())).toList());
+
+                /* 字段信息 */
+                QueryResult queryResult = execute(session, """
                         SELECT
                           COLUMN_NAME,
                           MAX(COLUMN_COMMENT) AS COLUMN_COMMENT
@@ -85,7 +111,8 @@ public class MySQLDriver extends Driver
                         ORDER BY
                           COLUMN_NAME;
                         """);
-                ret.addAll(grid.getRows().stream().map(t -> Suggestion.ofField(first(t), second(t))).toList());
+
+                ret.addAll(queryResult.getRows().stream().map(t -> Suggestion.ofField(first(t), second(t))).toList());
 
                 return Lists.newArrayList(ret);
         }
@@ -103,7 +130,7 @@ public class MySQLDriver extends Driver
                             	`CREATE_TIME` AS `createTime`,
                             	`UPDATE_TIME` AS `updateTime`,
                             	`ENGINE` AS `engine`,
-                            	 ROUND((DATA_LENGTH + INDEX_LENGTH) / 1024, 2) AS `size`,
+                            	 ROUND((DATA_LENGTH + INDEX_LENGTH), 2) AS `size`,
                             	`TABLE_ROWS` AS `rows`,
                             	`TABLE_COMMENT` AS `comment`
                             FROM
@@ -137,28 +164,28 @@ public class MySQLDriver extends Driver
         {
                 SQL sql = new SQL("SHOW INDEX FROM " + dialect.quote(table) + ";");
 
-                DataGrid dataGrid = execute(session, sql);
+                QueryResult queryResult = execute(session, sql);
 
                 Map<String, List<String>> indexColumns = Maps.newHashMap();
                 Map<String, Index> indexes = new LinkedHashMap<>();
 
-                for (int i = 0; i < dataGrid.size(); i++) {
-                        String keyName = dataGrid.getRowValue(i, "Key_name");
+                for (int i = 0; i < queryResult.size(); i++) {
+                        String keyName = queryResult.getRowValue(i, "Key_name");
                         List<String> columns = indexColumns.computeIfAbsent(keyName, k -> new ArrayList<>());
 
                         /* 主键忽略 */
                         if (streq(keyName, "PRIMARY"))
                                 continue;
 
-                        columns.add(dataGrid.getRowValue(i, "Column_name"));
+                        columns.add(queryResult.getRowValue(i, "Column_name"));
 
                         Index index = new Index();
 
                         index.setName(keyName);
                         index.setOriginalName(keyName);
 
-                        String Non_unique = dataGrid.getRowValue(i, "Non_unique");
-                        String Index_type = dataGrid.getRowValue(i, "Index_type");
+                        String Non_unique = queryResult.getRowValue(i, "Non_unique");
+                        String Index_type = queryResult.getRowValue(i, "Index_type");
 
                         if (streq(Non_unique, "1") && streq(Index_type, "BTREE")) {
                                 index.setType("NORMAL");
@@ -175,7 +202,7 @@ public class MySQLDriver extends Driver
                         }
 
                         if (productMetaData.getMajorVersion() >= MySQL.VERSION_8x) {
-                                index.setVisible(atobool(dataGrid.getRowValue(i, "Visible")));
+                                index.setVisible(atobool(queryResult.getRowValue(i, "Visible")));
                                 index.setOriginalVisible(index.isVisible());
                         }
 

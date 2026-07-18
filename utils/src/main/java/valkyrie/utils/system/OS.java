@@ -22,8 +22,8 @@ import valkyrie.utils.time.Chrono;
 
 import java.util.Map;
 
-import static valkyrie.utils.string.StaticLibrary.stricheckin;
-import static valkyrie.utils.string.StaticLibrary.strrexp;
+import static valkyrie.utils.string.StrStaticImports.strihas;
+import static valkyrie.utils.string.StrStaticImports.strrexp;
 
 /**
  * `SystemUtils` 是一个类，用于管理和操作操作系统环境变量。
@@ -75,14 +75,14 @@ public class OS
     /**
      * @return 返回当前操作系统枚举对象
      */
-    private static OperatorSystem getos() {
+    public static OperatorSystem getos() {
         // initialize
         String _OS_NAME = System.getProperty("os.name");
-        if (stricheckin(_OS_NAME, "Windows"))
+        if (strihas(_OS_NAME, "Windows"))
             return OperatorSystem.WINDOWS;
-        else if (stricheckin(_OS_NAME, "Linux"))
+        else if (strihas(_OS_NAME, "Linux"))
             return OperatorSystem.LINUX;
-        else if (stricheckin(_OS_NAME, "Mac"))
+        else if (strihas(_OS_NAME, "Mac"))
             return OperatorSystem.MACOS;
         return OperatorSystem.UNKNOWN;
     }

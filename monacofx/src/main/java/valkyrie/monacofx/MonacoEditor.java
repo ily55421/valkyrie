@@ -1,6 +1,7 @@
 package valkyrie.monacofx;
 
 import com.alibaba.fastjson.JSONObject;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.event.EventHandler;
 import javafx.scene.control.ContextMenu;
@@ -11,8 +12,11 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.StackPane;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
+import javafx.util.Duration;
 import lombok.Setter;
 import netscape.javascript.JSObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 
@@ -27,16 +31,26 @@ import static valkyrie.utils.TypeConverter.atos;
 @SuppressWarnings("ALL")
 public class MonacoEditor extends StackPane
 {
+        private static final Logger LOG = LoggerFactory.getLogger(MonacoEditor.class);
+
         private final WebView webView = new WebView();
         private final WebEngine engine = webView.getEngine();
-        private final JavaHook javaHook = new JavaHook();
+        private final MonacoHook hook = new MonacoHook(this);
+        private final PauseTransition pauseTransition = new PauseTransition(Duration.millis(500));
         private ContextMenu contextMenu = null;
 
         @Setter
         private ShowContextMenuRequestEvent showContextMenuRequestEvent = null;
 
+        @Setter
+        private OnDidChangeModelContent onDidChangeModelContent = null;
+
         public interface ShowContextMenuRequestEvent {
                 void onRequest(ContextMenu contextMenu);
+        }
+
+        public interface OnDidChangeModelContent {
+                void onChange();
         }
 
         @SuppressWarnings("DataFlowIssue")
@@ -54,6 +68,11 @@ public class MonacoEditor extends StackPane
                         }
                 });
 
+                pauseTransition.setOnFinished(event -> {
+                        if (onDidChangeModelContent != null)
+                                onDidChangeModelContent.onChange();
+                });
+
                 setHook();
 
                 webView.prefWidthProperty().bind(this.widthProperty());
@@ -62,46 +81,36 @@ public class MonacoEditor extends StackPane
 
         public void dispose()
         {
-                waitAndRun(() -> engine.executeScript("""
-                        try {
-                                const model =
-                                        editor.getModel();
-                                        
-                                if (model)
-                                        model.dispose();
-                                        
-                                editor.dispose();
-                        } catch (e) {
-                                console.log(e);
-                        }
-                        """));
-
                 engine.getLoadWorker().cancel();
-                engine.loadContent("");
+                engine.load("about:blank");
 
-                engine.executeScript("""
-                        document.body.innerHTML = '';
-                        window.close();
-                        """);
+                StackPane parent = (StackPane) webView.getParent();
 
-                JSObject window = (JSObject) engine.executeScript("window");
-                window.setMember("javaHook", null);
-
-                System.gc();
+                if (parent != null)
+                        parent.getChildren().remove(webView);
         }
 
         /**
          * 钩子函数
          */
         @SuppressWarnings("unused")
-        public static class JavaHook {
+        public static class MonacoHook {
+
+                private final MonacoEditor editor;
+
+                public MonacoHook(MonacoEditor editor)
+                {
+                        this.editor = editor;
+                }
+
                 /**
                  * 打印日志
                  */
-                public void println(Object message)
+                public void info(Object message)
                 {
-                        System.out.println(message);
+                        LOG.info("Monaco editor: {}", message);
                 }
+
                 /**
                  * 写入剪贴板
                  */
@@ -111,21 +120,29 @@ public class MonacoEditor extends StackPane
                         content.putString(atos(text));
                         Clipboard.getSystemClipboard().setContent(content);
                 }
+
+                /**
+                 * 用户输入监听
+                 */
+                public void onDidChangeModelContent()
+                {
+                        editor.pauseTransition.playFromStart();
+                }
         }
 
         private void setHook()
         {
                 waitAndRun(() -> {
                         JSObject window = (JSObject) engine.executeScript("window");
-                        window.setMember("javaHook", javaHook);
+                        window.setMember("hook", hook);
                         engine.executeScript(
                                 """
                                    console.log = function(message) {
-                                       window.javaHook.println(message);
+                                       window.hook.info(message);
                                    };
                                    
                                    window.writeClipboard = function(message) {
-                                       window.javaHook.writeClipboard(message);
+                                       window.hook.writeClipboard(message);
                                    };
                                    """
                         );
@@ -159,7 +176,7 @@ public class MonacoEditor extends StackPane
         /**
          * 使用 Suggestion 对象注册提示
          */
-        public void registerSuggestion(Collection<?> suggestions)
+        public void registerSuggestions(Collection<?> suggestions)
         {
                 waitAndRun(() -> {
                         engine.executeScript("window.addSuggestions(" + JSONObject.toJSONString(suggestions) + ")");
@@ -246,5 +263,11 @@ public class MonacoEditor extends StackPane
                         .replace("\r", "")
                         .replace("\n", "\\n")
                         + "'";
+        }
+
+        @Override
+        protected void finalize() throws Throwable
+        {
+                System.out.println("MonacoEditor finalize: " + this);
         }
 }

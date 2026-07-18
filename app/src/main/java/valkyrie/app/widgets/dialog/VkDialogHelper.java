@@ -23,7 +23,7 @@ import valkyrie.utils.exception.SystemRuntimeException;
 import java.awt.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static valkyrie.utils.string.StaticLibrary.fmt;
+import static valkyrie.utils.string.StrStaticImports.fmt;
 
 /**
  * Dialog
@@ -128,7 +128,7 @@ public class VkDialogHelper
 
         private static boolean showCheckDialog(String fmt, Object... args)
         {
-                Stage stage = Application.createByPrimaryStage();
+                Stage stage = Application.createModalStage();
 
                 AtomicBoolean flag = new AtomicBoolean(true);
 
@@ -165,7 +165,7 @@ public class VkDialogHelper
 
         private static boolean showDialog(String fmt, Object... args)
         {
-                Stage stage = Application.createByPrimaryStage();
+                Stage stage = Application.createModalStage();
 
                 AtomicBoolean flag = new AtomicBoolean(true);
 
@@ -190,7 +190,7 @@ public class VkDialogHelper
 
         private static void showAlert(String fmt, Object... args)
         {
-                Stage stage = Application.createByPrimaryStage();
+                Stage stage = Application.createModalStage();
 
                 String text = fmt(fmt, args);
 

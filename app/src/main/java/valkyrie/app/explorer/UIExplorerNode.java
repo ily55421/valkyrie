@@ -1,13 +1,19 @@
 package valkyrie.app.explorer;
 
+import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.TreeItem;
-import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseEvent;
 import lombok.Getter;
-import lombok.Setter;
 import valkyrie.app.assets.Assets;
+import valkyrie.app.utils.Threads;
+import valkyrie.app.widgets.VkContextMenu;
+import valkyrie.app.widgets.dialog.VkDialogHelper;
+import valkyrie.driver.api.node.DBNode;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author Luo Tiansheng
@@ -16,99 +22,130 @@ import valkyrie.app.assets.Assets;
 
 public abstract class UIExplorerNode extends TreeItem<String>
 {
-        /**
-         *  节点名称
-         */
-        @Getter
-        protected final String name;
+        private @Getter String label;
 
-        /**
-         * 节点菜单
-         * -- SETTER --
-         *  设置菜单
+        private final @Getter UIExplorerNode explorerParent;
+        private final String icon;
 
-         */
-        @Setter
-        @Getter
-        protected ContextMenu contextMenu;
-
+        protected AtomicBoolean progressing = new AtomicBoolean(false);
+        private VkContextMenu contextMenu;
         private Node oldGraphic;
 
-        public interface MouseDoubleClickEvent
+        public UIExplorerNode(UIExplorerNode parent, String label, String icon)
         {
-                void call(MouseEvent event);
+                super(label);
+                this.explorerParent = parent;
+                this.label = label;
+                this.icon = icon;
+
+                if (icon != null)
+                        setGraphic(Assets.use(icon));
         }
 
-        public interface SelectedEvent
+        public void setLabel(String label)
         {
-                void call(UIExplorerNode node);
+                this.label = label;
+                setValue(label);
         }
 
-        @Setter
-        private MouseDoubleClickEvent mouseDoubleClickEvent;
-        @Setter
-        private SelectedEvent selectedEvent;
-
-        public UIExplorerNode(String name)
+        public Node createGraphic()
         {
-                this(name, name);
+                return Assets.use(icon);
         }
 
-        public UIExplorerNode(String lab, String name)
+        public UIConnectionNode getRoot()
         {
-                super(lab);
-                this.name = name;
-                this.contextMenu = registerContextMenu();
+                UIExplorerNode root = explorerParent;
+
+                while (root.getExplorerParent() != null) {
+                        root = root.getExplorerParent();
+                }
+
+                return (UIConnectionNode) root;
         }
 
-        public abstract ImageView getIcon();
-
-        protected void setLoadingIndicator()
+        public String getPath()
         {
+                if (explorerParent == null)
+                        return label;
+
+                return explorerParent.getPath() + "/" + label;
+        }
+
+        public VkContextMenu getContextMenu()
+        {
+                if (contextMenu == null)
+                        contextMenu = configureContextMenu();
+                return contextMenu;
+        }
+
+        protected List<UIDynamicNode> loadDynamicChildren(List<DBNode> dbNodes)
+        {
+                List<UIDynamicNode> dynamicNodes = new ArrayList<>();
+
+                for (DBNode dbNode : dbNodes)
+                        dynamicNodes.add(UIDynamicNode.create(this, dbNode));
+
+                getChildren().addAll(dynamicNodes);
+
+                return dynamicNodes;
+        }
+
+        protected void useProgressIndicator(Runnable action)
+        {
+                if (progressing.get())
+                        return;
+
+                progressing.set(true);
+
                 oldGraphic = getGraphic();
                 setGraphic(Assets.newProgressIndicator());
-        }
 
-        protected void removeLoadingIndicator()
-        {
-                setGraphic(oldGraphic);
+                Threads.start(() -> {
+                        try {
+                                action.run();
+                        } catch (Exception ex) {
+                                Platform.runLater(() -> VkDialogHelper.alert(ex));
+                        } finally {
+                                progressing.set(false);
+                                Platform.runLater(() -> setGraphic(oldGraphic));
+                        }
+                });
         }
 
         /**
-         * 子类实现，注册节点专属菜单
+         * 配置右键菜单
          */
-        protected ContextMenu registerContextMenu()
+        public VkContextMenu configureContextMenu()
         {
                 return null;
         }
 
-        /**
-         * 显示菜单
-         */
-        public void showContextMenu(Node node, double x, double y)
+        public void showContextMenu(double x, double y)
         {
-                if (contextMenu == null)
-                        return;
+                VkContextMenu contextMenu = getContextMenu();
 
-                contextMenu.show(node, x, y);
+                if (contextMenu != null) {
+                        onContextMenuRequested(contextMenu);
+                        contextMenu.show(x, y);
+                }
         }
 
-        /**
-         * 触发鼠标双击事件
-         */
-        public void onMouseDoubleClickEvent(MouseEvent event)
+        /////////////////////////////////////////////////////////////////
+        ///                           Event                           ///
+        /////////////////////////////////////////////////////////////////
+        public void onContextMenuRequested(ContextMenu contextMenu)
         {
-                if (mouseDoubleClickEvent != null)
-                        mouseDoubleClickEvent.call(event);
+                /* DO NOTHING... */
         }
 
-        /**
-         * 触发节点选中事件
-         */
+        public void onMouseDoubleClickEvent()
+        {
+                /* DO NOTHING... */
+        }
+
         public void onSelectedEvent(UIExplorerNode node)
         {
-                if (selectedEvent != null)
-                        selectedEvent.call(node);
+                /* DO NOTHING... */
         }
-
 }

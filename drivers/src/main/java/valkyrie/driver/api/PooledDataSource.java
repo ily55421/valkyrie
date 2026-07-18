@@ -20,8 +20,12 @@ public class PooledDataSource
 {
         private final HikariDataSource ds;
 
+        private final ConnectionConfig conf;
+
         public PooledDataSource(ConnectionConfig conf)
         {
+                this.conf = conf;
+
                 HikariConfig hconf = new HikariConfig();
 
                 hconf.setJdbcUrl(conf.getJdbcUrl());
@@ -32,11 +36,10 @@ public class PooledDataSource
                 hconf.setMinimumIdle(1);
                 hconf.setConnectionTimeout(30000);
 
-                switch (conf.getType()) {
-                        case mysql -> hconf.setDriverClassName("com.mysql.cj.jdbc.Driver");
-                        case dm -> hconf.setDriverClassName("dm.jdbc.driver.DmDriver");
-                        default -> {}
-                }
+                String driverClass = conf.getType().getDriverClass();
+
+                if (driverClass != null)
+                        hconf.setDriverClassName(driverClass);
 
                 ds = new HikariDataSource(hconf);
         }
@@ -44,6 +47,12 @@ public class PooledDataSource
         /* ******************************************************************************** */
         /*                            DATASOURCE PROXY IMPLEMENTS                           */
         /* ******************************************************************************** */
+
+        @Override
+        public ConnectionConfig getConnectionConfig()
+        {
+                return conf;
+        }
 
         @Override
         public Connection getConnection() throws SQLException

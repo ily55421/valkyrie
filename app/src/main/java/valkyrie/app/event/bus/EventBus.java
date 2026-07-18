@@ -1,8 +1,11 @@
 package valkyrie.app.event.bus;
 
 import javafx.application.Platform;
+import javafx.scene.layout.Pane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import valkyrie.app.event.workbench.CloseNavigationPaneEvent;
+import valkyrie.app.event.workbench.OpenNavigationPaneEvent;
 import valkyrie.app.event.workbench.OpenTabEvent;
 
 import java.util.Map;
@@ -25,20 +28,25 @@ public class EventBus
         /**
          * 订阅事件
          */
-        public static void subscribe(Class<? extends Event> event, EventListener listener)
+        @SafeVarargs
+        public static void subscribe(EventListener listener, Class<? extends Event> ...events)
         {
-                eventListeners.computeIfAbsent(event, k -> new CopyOnWriteArrayList<>())
-                        .add(listener);
+                for (Class<? extends Event> event : events)
+                        eventListeners.computeIfAbsent(event, k -> new CopyOnWriteArrayList<>())
+                                .add(listener);
         }
 
         /**
          * 取消订阅
          */
-        public static void unscribe(Class<? extends Event> event, EventListener listener)
+        @SafeVarargs
+        public static void unscribe(EventListener listener, Class<? extends Event> ...events)
         {
-                CopyOnWriteArrayList<EventListener> eventListeners = EventBus.eventListeners.get(event);
-                if (eventListeners != null)
-                        eventListeners.remove(listener);
+                for (Class<? extends Event> event : events) {
+                        CopyOnWriteArrayList<EventListener> eventListeners = EventBus.eventListeners.get(event);
+                        if (eventListeners != null)
+                                eventListeners.remove(listener);
+                }
         }
 
         /**
@@ -66,6 +74,16 @@ public class EventBus
                                 }
                         });
                 });
+        }
+
+        public static void openNavigationPane(Object owner, Pane pane)
+        {
+                publish(new OpenNavigationPaneEvent(owner, pane));
+        }
+
+        public static void closeNavigationPane(Object owner)
+        {
+                publish(new CloseNavigationPaneEvent(owner));
         }
 
 }

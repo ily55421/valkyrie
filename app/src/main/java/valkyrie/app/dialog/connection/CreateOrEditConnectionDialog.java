@@ -18,8 +18,8 @@ import valkyrie.app.model.ConnectionPropertyModel;
 import valkyrie.core.repository.ConnectionRepository;
 import valkyrie.core.utils.JSONUtils;
 import valkyrie.driver.api.DbType;
+import valkyrie.driver.api.DriverFactory;
 import valkyrie.driver.api.VkDataSource;
-import valkyrie.driver.api.VkDataSourceFactory;
 import valkyrie.utils.exception.Causes;
 
 /**
@@ -54,9 +54,13 @@ public class CreateOrEditConnectionDialog extends Stage
                 this.isUpdate = newProperty != null;
                 this.dbType = dbType;
 
-                this.newProperty = isUpdate
-                        ? newProperty
-                        : new ConnectionPropertyModel("MySQL");
+                this.newProperty = isUpdate ? newProperty : switch (dbType) {
+                        case mysql -> ConnectionPropertyModel.createMySQL();
+                        case postgresql -> ConnectionPropertyModel.createPostgresql();
+                        case sqlite -> ConnectionPropertyModel.createSQLite();
+                        case dm -> ConnectionPropertyModel.createDM();
+                        case redis -> ConnectionPropertyModel.createRedis();
+                };
 
                 this.oldProperty = isUpdate
                         ? JSONUtils.deepCopy(newProperty)
@@ -80,7 +84,7 @@ public class CreateOrEditConnectionDialog extends Stage
                 tabPane.getTabs().add(generalTab);
 
                 switch (dbType) {
-                        case mysql, dm -> {
+                        case mysql, postgresql, sqlite, dm -> {
                                 Tab advanceTab = new Tab("高级属性");
                                 advanceTab.setClosable(false);
                                 advanceTab.setContent(new ConnectionAdvancedPane(newProperty));
@@ -127,7 +131,7 @@ public class CreateOrEditConnectionDialog extends Stage
         public void testConnection()
         {
                 var config = newProperty.toConnectionConfig();
-                try (VkDataSource ds = VkDataSourceFactory.create(config)) {
+                try (VkDataSource ds = DriverFactory.createDataSource(config)) {
                         status.setText("Connected successfully...");
                         status.setStyle("-fx-text-fill: #28a745;");
                 } catch (Exception e) {

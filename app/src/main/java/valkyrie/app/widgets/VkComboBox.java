@@ -11,6 +11,7 @@ public class VkComboBox<T> extends ComboBox<T>
 {
         public VkComboBox()
         {
+                setPrefWidth(200);
         }
 
         public VkComboBox(ObservableList<T> items)
@@ -27,5 +28,11 @@ public class VkComboBox<T> extends ComboBox<T>
                         this.getSelectionModel().getSelectedIndex());
 
                 return dst;
+        }
+
+        public void setHidden(boolean value)
+        {
+                setVisible(!value);
+                setManaged(!value);
         }
 }

@@ -3,10 +3,16 @@ package valkyrie.app.assets;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import valkyrie.app.Application;
+import valkyrie.utils.Captor;
+import valkyrie.utils.io.UFile;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static valkyrie.utils.string.StrStaticImports.strrstr;
 
 /**
  * 资源管理
@@ -16,8 +22,8 @@ import java.util.Objects;
  */
 public class Assets
 {
-        private static final int DEFAULT_SIZE = 16;
-        private static final Map<String, Image> IMAGES = new HashMap<>();
+        private static final double DEFAULT_SIZE = 19;
+        private static final Map<String, Image> originImages = new HashMap<>();
 
         static {
                 loadImages();
@@ -34,65 +40,63 @@ public class Assets
         {
                 String[] split = name.split("@");
 
-                ImageView imageView = new ImageView(IMAGES.get(split[0]));
-
+                ImageView imageView = new ImageView();
                 String scale = split.length > 1 ? split[1] : "1x";
 
-                int size = switch (scale) {
-                        case "2x" -> 24;
-                        case "3x" -> 32;
-                        case "4x" -> 40;
-                        case "5x" -> 50;
-                        case "6x" -> 64;
-                        default   -> DEFAULT_SIZE;
-                };
+                double size = parseScale(scale);
 
-                imageView.setFitWidth(size);
-                imageView.setFitHeight(size);
-                imageView.setPreserveRatio(true);
-                imageView.setSmooth(true);
+                Image image = originImages.get(split[0]);
+                Image scaledImage = new Image(image.getUrl(), size, size, true, true);
+                imageView.setImage(scaledImage);
 
                 return imageView;
         }
 
-        private static void loadImages()
+        private static double parseScale(String scale)
         {
-                IMAGES.put("chain", load("/assets/icons/chain.png"));
-                IMAGES.put("connect", load("/assets/icons/connect.png"));
-                IMAGES.put("database0", load("/assets/icons/database0.png"));
-                IMAGES.put("database1", load("/assets/icons/database1.png"));
-                IMAGES.put("query", load("/assets/icons/query.png"));
-                IMAGES.put("run0", load("/assets/icons/run0.png"));
-                IMAGES.put("sql", load("/assets/icons/sql.png"));
-                IMAGES.put("table", load("/assets/icons/table.png"));
-                IMAGES.put("modify", load("/assets/icons/modify.png"));
-                IMAGES.put("plus", load("/assets/icons/plus.png"));
-                IMAGES.put("minus", load("/assets/icons/minus.png"));
-                IMAGES.put("search", load("/assets/icons/search.png"));
-                IMAGES.put("stop", load("/assets/icons/stop.png"));
-                IMAGES.put("beautify", load("/assets/icons/beautify.png"));
-                IMAGES.put("check", load("/assets/icons/check.png"));
-                IMAGES.put("cross", load("/assets/icons/cross.png"));
-                IMAGES.put("reload", load("/assets/icons/reload.png"));
-                IMAGES.put("save", load("/assets/icons/save.png"));
-                IMAGES.put("struct0", load("/assets/icons/struct0.png"));
-                IMAGES.put("struct1", load("/assets/icons/struct1.png"));
-                IMAGES.put("index0", load("/assets/icons/index0.png"));
-                IMAGES.put("storage", load("/assets/icons/storage.png"));
-                IMAGES.put("warning", load("/assets/icons/warning.png"));
-                IMAGES.put("mysql", load("/assets/icons/mysql.png"));
-                IMAGES.put("dm2", load("/assets/icons/dm2.png"));
-                IMAGES.put("nav0", load("/assets/icons/navigation.png"));
-                IMAGES.put("home", load("/assets/icons/home.png"));
-                IMAGES.put("table2", load("/assets/icons/table2.png"));
-                IMAGES.put("export", load("/assets/icons/export.png"));
-                IMAGES.put("redis", load("/assets/icons/redis.png"));
+                double size;
+
+                if (scale.endsWith("px")) {
+                        size = Double.parseDouble(scale.substring(0, scale.length() - 2));
+                } else {
+                        size = switch (scale) {
+                                case "2x" -> 24.0f;
+                                case "3x" -> 32.0f;
+                                case "4x" -> 40.0f;
+                                case "5x" -> 50.0f;
+                                case "6x" -> 64.0f;
+                                default   -> DEFAULT_SIZE;
+                        };
+                }
+
+                return size;
         }
 
-        private static Image load(String path)
+        private static void loadImages()
+        {
+                Captor.call(() -> {
+                        URI uri = Application.getResourceURI("assets/icons");
+
+                        UFile iconsDir = new UFile(uri);
+                        UFile[] files = iconsDir.listFiles();
+
+                        if (files != null) {
+                                for (UFile icon : files)
+                                        originImages.put(icon.getCleanName(), load(icon));
+                        }
+                });
+        }
+
+        private static String toResourcePath(UFile file)
+        {
+                String path = file.getPath();
+                return path.substring(strrstr(path, "/", 3));
+        }
+
+        private static Image load(UFile file)
         {
                 return new Image(Objects.requireNonNull(Assets.class
-                                .getResource(path))
+                                .getResource(toResourcePath(file)))
                                 .toExternalForm());
         }
 }

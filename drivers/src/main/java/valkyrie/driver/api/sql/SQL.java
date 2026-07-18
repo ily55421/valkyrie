@@ -12,7 +12,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import static valkyrie.utils.collection.Lists.last;
-import static valkyrie.utils.string.StaticLibrary.fmt;
+import static valkyrie.utils.string.StrStaticImports.fmt;
+import static valkyrie.utils.string.StrStaticImports.lowercase;
 
 /**
  * SQL 执行单元
@@ -65,18 +66,21 @@ public class SQL implements Iterable<SQLParsedStatement>
                         }
                 } catch (Exception e) {
                         this.statements.clear();
+                        type = checkType(raw);
                         this.statements.add(new SQLParsedStatement(raw, type != null ? type : SQLCommandType.EXECUTE));
                 }
         }
 
-        public SQLParsedStatement popupEnd()
+        private static SQLCommandType checkType(String raw)
         {
-                return statements.removeLast();
+                if (lowercase(raw).startsWith("pragma"))
+                        return SQLCommandType.EXECUTE_QUERY;
+                return null;
         }
 
-        public void pushback(SQLParsedStatement statement)
+        public SQLParsedStatement getLast()
         {
-                statements.add(statement);
+                return last(statements);
         }
 
         @Override

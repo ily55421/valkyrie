@@ -1,62 +1,41 @@
 package valkyrie.app.explorer;
 
 import javafx.application.Platform;
-import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.image.ImageView;
+import javafx.scene.control.TreeItem;
+import javafx.scene.control.TreeView;
 import lombok.Getter;
 import lombok.Setter;
-import valkyrie.app.assets.Assets;
 import valkyrie.app.dialog.connection.CreateOrEditConnectionDialog;
+import valkyrie.app.event.ConnectedSuccessEvent;
 import valkyrie.app.event.bus.EventBus;
-import valkyrie.app.event.workbench.ConnectionOpenedNotifyEvent;
 import valkyrie.app.model.ConnectionPropertyModel;
-import valkyrie.app.model.UIExplorerStatus;
+import valkyrie.app.widgets.VkContextMenu;
 import valkyrie.app.widgets.dialog.VkDialogHelper;
 import valkyrie.core.repository.ConnectionRepository;
-import valkyrie.driver.api.*;
-import valkyrie.driver.dm.DMDriver;
-import valkyrie.driver.mysql.MySQLDriver;
-import valkyrie.driver.redis.RedisDriver;
-import valkyrie.driver.suggestion.Suggestion;
+import valkyrie.driver.api.ConnectionConfig;
+import valkyrie.driver.api.Driver;
+import valkyrie.driver.api.DriverFactory;
+import valkyrie.driver.api.node.DBNode;
+import valkyrie.utils.io.IOUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Explorer Node 体系下的 Root 节点
+ *
  * @author Luo Tiansheng
- * @since 2026/3/25
+ * @since 2026/6/5
  */
-@SuppressWarnings("FieldCanBeLocal")
 public class UIConnectionNode extends UIExplorerNode
 {
-        @Getter
+        private final @Getter TreeView<String> treeView;
         private final ConnectionPropertyModel propertyModel;
+        private @Getter Driver driver;
+        private boolean connectFlag = false;
 
-        private boolean openFlag = false;
-        private boolean cancelFlag = false;
-        private Thread connecetThread = null;
-        private VkDataSource dataSource;
-
-        @Getter
-        private Driver driver;
-
-        @Getter
-        private DbType dbType;
-
-        // Menu Items
-        private MenuItem openOrCloseMenuItem;
-        private MenuItem editMenuItem;
-        private MenuItem deleteMenuItem;
-
-        @Getter
-        private final List<UICatalogNode> catalogNodes = new ArrayList<>();
-
-        @Setter
-        @Getter
-        private UICatalogNode selectedDatabase;
+        private final MenuItem connectOrDisconnectMenuItem = new MenuItem("打开连接");
 
         @Setter
         private DeleteRequestListener deleteRequestListener;
@@ -65,138 +44,27 @@ public class UIConnectionNode extends UIExplorerNode
                 void onDeleteRequest(UIConnectionNode node);
         }
 
-        public UIConnectionNode(ConnectionPropertyModel propertyModel)
+        public UIConnectionNode(TreeView<String> treeView, ConnectionPropertyModel propertyModel)
         {
-                super(propertyModel.getName());
-
-                this.dbType = DbType.of(propertyModel.getType());
-
-                setGraphic(getIcon());
+                super(null, propertyModel.getName(), propertyModel.getDbType().getIcon());
+                this.treeView = treeView;
                 this.propertyModel = propertyModel;
-                setupListenerEvent();
+                GlobalDynamicNodeContext.getConnectionNodes().add(this);
         }
 
         @Override
-        public ImageView getIcon()
+        public VkContextMenu configureContextMenu()
         {
-                return switch (this.dbType) {
-                        case mysql -> Assets.use("mysql");
-                        case dm -> Assets.use("dm2");
-                        case redis -> Assets.use("redis");
-                };
-        }
+                VkContextMenu contextMenu = new VkContextMenu();
 
-        private void createDriver()
-        {
-                ConnectionConfig config = propertyModel.toConnectionConfig();
-                dataSource = VkDataSourceFactory.create(config);
-
-                driver = switch (config.getType()) {
-                        case mysql -> new MySQLDriver(dataSource);
-                        case dm -> new DMDriver(dataSource);
-                        case redis -> new RedisDriver(dataSource);
-                };
-        }
-
-        public void openConnection()
-        {
-                if (openFlag)
-                        return;
-
-                cancelFlag = false;
-
-                setLoadingIndicator();
-
-                connecetThread = new Thread(() -> {
-                        try {
-                                createDriver();
-                                setupDatabases(driver.getCatalogs());
-                                setExpanded(true);
-                                openFlag = true;
-                                UIExplorerStatus.getInstance().selectedConnection(this);
-                                EventBus.publish(new ConnectionOpenedNotifyEvent(this));
-                        } catch (Throwable e) {
-                                if (!cancelFlag)
-                                        Platform.runLater(() -> VkDialogHelper.alert(e));
-                        } finally {
-                                connecetThread = null;
-                                if (!cancelFlag)
-                                        Platform.runLater(this::removeLoadingIndicator);
-                        }
-                });
-
-                connecetThread.start();
-        }
-
-        public void closeConnection()
-        {
-                /* cancel */
-                if (connecetThread != null) {
-                        cancelFlag = true;
-                        connecetThread.interrupt();
-                        connecetThread = null;
-                        removeLoadingIndicator();
-                        return;
-                }
-
-                if (!openFlag)
-                        return;
-
-                setExpanded(false);
-
-                getChildren().forEach(db -> {
-                        if (db instanceof UICatalogNode dbNode)
-                                dbNode.closeDatabase();
-                });
-
-                catalogNodes.clear();
-                getChildren().clear();
-                VkDialogHelper.runWith(dataSource::close);
-                UIExplorerStatus.getInstance().unselectConnection(this);
-                selectedDatabase = null;
-
-                openFlag = false;
-        }
-
-        private void editConnection()
-        {
-                if (openFlag) {
-                        if (VkDialogHelper.ask("编辑需要关闭当前连接，是否关闭？")) {
-                                closeConnection();
-                                new CreateOrEditConnectionDialog(propertyModel).showAndWait();
-                        }
-                } else {
-                        new CreateOrEditConnectionDialog(propertyModel).showAndWait();
-                }
-        }
-
-        private void deleteConnection()
-        {
-                if (VkDialogHelper.askDangerous("确定要删除“%s”吗？", getName())) {
-                        deleteRequestListener.onDeleteRequest(this);
-                        ConnectionRepository.deleteConnection(getName());
-                        UIExplorerStatus.getInstance().removeConnection(this);
-                }
-        }
-
-        @Override
-        protected ContextMenu registerContextMenu()
-        {
-                ContextMenu contextMenu = new ContextMenu();
-
-                openOrCloseMenuItem = new MenuItem();
-
-                editMenuItem = new MenuItem("编辑连接");
-                editMenuItem.setOnAction(event -> editConnection());
-
-                deleteMenuItem = new MenuItem("删除连接");
-                deleteMenuItem.setOnAction(event -> deleteConnection());
+                MenuItem editMenuItem = new MenuItem("编辑连接");
+                editMenuItem.setOnAction(e -> edit());
+                MenuItem deleteMenuItem = new MenuItem("删除连接");
+                deleteMenuItem.setOnAction(e -> delete());
 
                 contextMenu.getItems().addAll(
-                        openOrCloseMenuItem,
-                        new SeparatorMenuItem(),
+                        connectOrDisconnectMenuItem,
                         editMenuItem,
-                        new SeparatorMenuItem(),
                         deleteMenuItem
                 );
 
@@ -204,48 +72,87 @@ public class UIConnectionNode extends UIExplorerNode
         }
 
         @Override
-        public void showContextMenu(Node node, double x, double y)
+        public void onContextMenuRequested(ContextMenu contextMenu)
         {
-                if (openFlag || connecetThread != null) {
-                        openOrCloseMenuItem.setText("关闭连接");
-                        openOrCloseMenuItem.setOnAction(event -> closeConnection());
-                } else {
-                        openOrCloseMenuItem.setText("打开连接");
-                        openOrCloseMenuItem.setOnAction(event -> openConnection());
+                if (progressing.get()) {
+                        connectOrDisconnectMenuItem.setDisable(true);
+                        return;
                 }
 
-                super.showContextMenu(node, x, y);
+                if (connectFlag) {
+                        connectOrDisconnectMenuItem.setText("关闭连接");
+                        connectOrDisconnectMenuItem.setOnAction(e -> disconnect());
+                } else {
+                        connectOrDisconnectMenuItem.setText("打开连接");
+                        connectOrDisconnectMenuItem.setOnAction(e -> connect());
+                }
+
+                connectOrDisconnectMenuItem.setDisable(false);
         }
 
         @Override
-        public void onSelectedEvent(UIExplorerNode node)
+        public void onMouseDoubleClickEvent()
         {
-                if (openFlag)
-                        UIExplorerStatus.getInstance().selectedConnection(this);
+                connect();
         }
 
-        private void setupListenerEvent()
+        public boolean isConnect()
         {
-                setMouseDoubleClickEvent(event -> openConnection());
+                return connectFlag;
         }
 
-        private void setupDatabases(List<Catalog> cats)
+        private void edit()
         {
-                for (Catalog cat : cats)
-                        catalogNodes.add(new UICatalogNode(this, driver, cat));
-                getChildren().addAll(catalogNodes);
+                if (connectFlag) {
+                        if (VkDialogHelper.ask("编辑需要关闭当前连接，是否关闭？")) {
+                                disconnect();
+                                new CreateOrEditConnectionDialog(propertyModel).showAndWait();
+                        }
+                } else {
+                        new CreateOrEditConnectionDialog(propertyModel).showAndWait();
+                }
         }
 
-        public List<Suggestion> getCatalogSuggestion()
+        private void delete()
         {
-                return getCatalogNodes().stream()
-                        .map(t -> Suggestion.ofModule(t.getName()))
-                        .toList();
+                if (VkDialogHelper.askDangerous("确定要删除“%s”吗？", getLabel())) {
+                        deleteRequestListener.onDeleteRequest(this);
+                        ConnectionRepository.deleteConnection(getLabel());
+                }
         }
 
-        @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-        public boolean isOpen()
+        public void connect()
         {
-                return openFlag;
+                if (connectFlag)
+                        return;
+
+                useProgressIndicator(() -> {
+                        ConnectionConfig connectionConfig = propertyModel.toConnectionConfig();
+                        driver = DriverFactory.create(connectionConfig);
+                        List<DBNode> nodeHierarchy = driver.getNodeHierarchy();
+                        Platform.runLater(() -> {
+                                loadDynamicChildren(nodeHierarchy);
+                                setExpanded(true);
+                        });
+                        connectFlag = true;
+                        // 发布事件
+                        EventBus.publish(new ConnectedSuccessEvent(this));
+                });
+        }
+
+        public void disconnect()
+        {
+                if (!connectFlag)
+                        return;
+
+                for (TreeItem<String> child : getChildren())
+                        ((UIDynamicNode) child).onParentCloseEvent();
+
+                setExpanded(false);
+                getChildren().clear();
+
+                IOUtils.closeQuietly(driver.getDataSource());
+
+                connectFlag = false;
         }
 }

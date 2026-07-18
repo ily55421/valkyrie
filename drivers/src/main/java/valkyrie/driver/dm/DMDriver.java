@@ -2,13 +2,15 @@ package valkyrie.driver.dm;
 
 import valkyrie.driver.api.*;
 import valkyrie.driver.api.exception.DriverException;
+import valkyrie.driver.api.node.DBNode;
+import valkyrie.driver.api.node.DBNodeKind;
+import valkyrie.driver.api.node.DBNodePath;
 import valkyrie.driver.api.sql.SQL;
 import valkyrie.driver.suggestion.Suggestion;
 import valkyrie.utils.Captor;
 import valkyrie.utils.collection.Lists;
 import valkyrie.utils.collection.Sets;
 
-import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -22,7 +24,7 @@ import static valkyrie.utils.TypeConverter.atobool;
 import static valkyrie.utils.TypeConverter.atos;
 import static valkyrie.utils.collection.Lists.first;
 import static valkyrie.utils.collection.Lists.second;
-import static valkyrie.utils.string.StaticLibrary.*;
+import static valkyrie.utils.string.StrStaticImports.*;
 
 /**
  * @author Luo Tiansheng
@@ -31,7 +33,7 @@ import static valkyrie.utils.string.StaticLibrary.*;
 @SuppressWarnings("SqlSourceToSinkFlow")
 public class DMDriver extends Driver
 {
-        public DMDriver(DataSource dataSource)
+        public DMDriver(VkDataSource dataSource)
         {
                 super(dataSource);
         }
@@ -43,39 +45,55 @@ public class DMDriver extends Driver
         }
 
         @Override
+        public List<DBNode> getNodeHierarchy()
+        {
+                List<DBNode> schemaNodes = Lists.newArrayList();
+                DMMetadataProvider metadataProvider = new DMMetadataProvider(this);
+                
+                List<String> schemas = getSchemas();
+                for (String schema : schemas)
+                        schemaNodes.add(new DMSchemaNode(schema, metadataProvider));
+
+                return schemaNodes;
+        }
+
+        @Override
+        public DBNodePath getNodeHierarchyPath()
+        {
+                return new DBNodePath(DBNodeKind.SCHEMA, null);
+        }
+
+        @Override
         protected Dialect createDialect()
         {
                 return new DMDialect();
         }
 
         @Override
-        public List<Catalog> getCatalogs()
-        {
-                /* 达梦没有 CATALOG 概念，只有 SCHEMA 模式的概念，所以将 CATALOG
-                   映射为 SCHEMA 方便接口统一 */
-                return Lists.map(getSchemas(), Catalog::of);
-        }
-
-        @Override
         public String showCreateTable(Session session, String table)
         {
-                DataGrid dataGrid = execute(session, new SQL(
+                QueryResult queryResult = execute(session, new SQL(
                         fmt("""
                                 SELECT DMDBA.GET_DDL_FIX('TABLE', '%s', '%s') AS "DDL" FROM DUAL
                                 """, table, session.schema())
                 ));
 
-                return first(first(dataGrid.getRows()));
+                return first(first(queryResult.getRows()));
         }
 
         @Override
-        public List<Suggestion> getSuggestion(Session session)
+        public List<Suggestion> getSuggestions(Session session)
         {
                 Set<Suggestion> ret = Sets.newHashSet();
 
                 ret.addAll(DMSuggestions.VALUES);
 
-                DataGrid grid = execute(session, """
+                /* 表信息 */
+                List<Table> tables = getTables(session);
+                ret.addAll(tables.stream().map(t -> Suggestion.ofClass(t.getName(), t.getComment())).toList());
+
+                /* 字段信息 */
+                QueryResult queryResult = execute(session, """
                         SELECT
                           c.COLUMN_NAME,
                           MAX(cc.COMMENTS) as "COMMENT"
@@ -89,7 +107,8 @@ public class DMDriver extends Driver
                         GROUP BY
                           c.COLUMN_NAME;
                         """, session.schema());
-                ret.addAll(grid.getRows().stream().map(t -> Suggestion.ofField(first(t), second(t))).toList());
+
+                ret.addAll(queryResult.getRows().stream().map(t -> Suggestion.ofField(first(t), second(t))).toList());
 
                 return Lists.newArrayList(ret);
         }
@@ -134,7 +153,7 @@ public class DMDriver extends Driver
 
                                         // 计算表大小（KB）
                                         long usedPages = rs.getLong("usedPages");
-                                        float sizeInKB = (usedPages * pageSize) / 1024.0f;
+                                        float sizeInKB = (usedPages * pageSize);
 
                                         // 处理创建时间
                                         Timestamp createTimestamp = rs.getTimestamp("createTime");
@@ -189,15 +208,15 @@ public class DMDriver extends Driver
                         ;
                         """;
 
-                DataGrid dataGrid = execute(session, sql, table, table);
+                QueryResult queryResult = execute(session, sql, table, table);
 
                 List<Index> indexes = Lists.newArrayList();
-                for (int i = 0; i < dataGrid.size(); i++) {
+                for (int i = 0; i < queryResult.size(); i++) {
                         Index index = new Index();
-                        index.setName(dataGrid.getRowValue(i, 0));
-                        index.setColumnsText(dataGrid.getRowValue(i, 1));
-                        index.setType(dataGrid.getRowValue(i, 2));
-                        index.setVisible(atobool(dataGrid.getRowValue(0, 3)));
+                        index.setName(queryResult.getRowValue(i, 0));
+                        index.setColumnsText(queryResult.getRowValue(i, 1));
+                        index.setType(queryResult.getRowValue(i, 2));
+                        index.setVisible(atobool(queryResult.getRowValue(0, 3)));
                         index.setOriginalName(index.getName());
                         index.setOriginalVisible(index.isVisible());
                         index.finalIntegrityCode();
@@ -268,8 +287,8 @@ public class DMDriver extends Driver
                         ;
                         """, table, session.schema());
 
-                DataGrid dataGrid = execute(session, sql);
-                return dataGrid.getRowValue(0, 0);
+                QueryResult queryResult = execute(session, sql);
+                return queryResult.getRowValue(0, 0);
         }
 
         @Override

@@ -2,12 +2,14 @@ package valkyrie.driver.api;
 
 import lombok.Getter;
 import valkyrie.driver.api.exception.DriverException;
+import valkyrie.driver.api.node.DBNode;
+import valkyrie.driver.api.node.DBNodePath;
 import valkyrie.driver.api.sql.SQL;
 import valkyrie.driver.api.sql.SQLExecutor;
 import valkyrie.driver.api.sql.SQLParsedStatement;
 import valkyrie.driver.suggestion.Suggestion;
 import valkyrie.driver.utils.ResultSets;
-import valkyrie.driver.utils.SQLUtils;
+import valkyrie.driver.utils.SQLParser;
 import valkyrie.utils.Captor;
 import valkyrie.utils.Optional;
 import valkyrie.utils.collection.Lists;
@@ -17,7 +19,7 @@ import java.sql.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static valkyrie.utils.string.StaticLibrary.fmt;
+import static valkyrie.utils.string.StrStaticImports.fmt;
 
 /**
  * JDBC 驱动抽象层。
@@ -59,7 +61,7 @@ public abstract class Driver implements SQLExecutor
          * <p>
          * 该引用为 {@code protected}，允许子类直接访问以支持更灵活的连接管理。
          */
-        protected final DataSource dataSource;
+        protected @Getter VkDataSource dataSource;
 
         /**
          * 执行任务列表
@@ -67,16 +69,19 @@ public abstract class Driver implements SQLExecutor
         protected final Map<Long, Statement> taskQueue = new ConcurrentHashMap<>();
 
         /**
+         * Hook 接口
+         */
+        protected final List<SQLExecuteHook> hooks = new ArrayList<>();
+
+        /**
          * 数据库产品元数据
          */
-        @Getter
-        protected ProductMetaData productMetaData;
+        protected @Getter ProductMetaData productMetaData;
 
         /**
          * 数据库方言转换器
          */
-        @Getter
-        protected final Dialect dialect;
+        protected final @Getter Dialect dialect;
 
         /**
          * 构造一个新的驱动实例。
@@ -84,7 +89,7 @@ public abstract class Driver implements SQLExecutor
          * @param dataSource 数据源，用于获取数据库连接（不能为 {@code null}）
          * @throws NullPointerException 如果 {@code dataSource} 为 {@code null}
          */
-        public Driver(DataSource dataSource)
+        public Driver(VkDataSource dataSource)
         {
                 this.dataSource = Objects.requireNonNull(dataSource, "DataSource must not be null");
 
@@ -105,6 +110,14 @@ public abstract class Driver implements SQLExecutor
         }
 
         /**
+         * 注册 Hook 接口
+         */
+        public void registerExecuteHook(SQLExecuteHook hook)
+        {
+                hooks.add(hook);
+        }
+
+        /**
          * 返回当前驱动实现的数据库类型。
          * <p>
          * 该类型用于标识底层数据库产品（如 MySQL、PostgreSQL、Oracle 等），
@@ -114,6 +127,33 @@ public abstract class Driver implements SQLExecutor
          * @see DbType
          */
         public abstract DbType getType();
+
+        /**
+         * 获取数据库对象的节点层次结构。
+         * <p>
+         * 返回当前数据库连接下所有可见对象的树形结构，例如：
+         * 数据库（Catalog） → 模式（Schema） → 表（Table）/视图（View）/函数等。
+         * 不同数据库的层级结构可能存在差异（如 MySQL 中 Catalog 等同于 Database，
+         * 而 Oracle 或 PostgreSQL 中 Catalog 与 Schema 关系不同），具体实现应
+         * 遵循目标数据库的实际组织方式。
+         *
+         * @return 节点列表，表示根节点下的直接子节点；若无可展示对象则返回空列表（永不返回 {@code null}）
+         * @see DBNode
+         */
+        public abstract List<DBNode> getNodeHierarchy();
+
+        /**
+         * 获取当前数据库对象节点的层级路径。
+         * <p>
+         * 返回从根节点到当前选中或活动对象（如当前 Catalog / Schema）的路径信息，
+         * 用于定位当前上下文在 {@link #getNodeHierarchy()} 返回的树形结构中的位置。
+         * 路径通常由一系列节点标识符组成，例如 {@code ["catalog_name", "schema_name"]}。
+         *
+         * @return 当前节点的层级路径（若无当前上下文或未选中任何节点，可能返回空路径或 {@code null}，
+         *         具体由实现决定）
+         * @see DBNodePath
+         */
+        public abstract DBNodePath getNodeHierarchyPath();
 
         /**
          * 创建并返回当前环境适用的数据库方言实例。
@@ -169,7 +209,7 @@ public abstract class Driver implements SQLExecutor
          * @see Connection#setSchema(String)
          */
         public Connection getConnection(Session session) throws SQLException {
-                Connection connection = dataSource.getConnection();
+                Connection connection = new ConnectionProxy(dataSource.getConnection(), hooks);
 
                 if (session != null) {
                         if (session.catalog() != null)
@@ -215,15 +255,15 @@ public abstract class Driver implements SQLExecutor
          * @throws DriverException 如果数据库元数据访问失败
          * @see DatabaseMetaData#getCatalogs()
          */
-        public List<Catalog> getCatalogs() {
-                List<Catalog> catalogs = Lists.newArrayList();
+        public List<String> getCatalogs() {
+                List<String> catalogs = Lists.newArrayList();
 
                 try (Connection connection = getConnection()) {
                         DatabaseMetaData metadata = connection.getMetaData();
                         ResultSet rs = metadata.getCatalogs();
 
                         while (rs.next())
-                                catalogs.add(Catalog.of(rs.getString("TABLE_CAT")));
+                                catalogs.add(rs.getString("TABLE_CAT"));
 
                         return catalogs;
                 } catch (SQLException e) {
@@ -242,10 +282,10 @@ public abstract class Driver implements SQLExecutor
          * @throws DriverException 如果数据库元数据访问失败
          * @see DatabaseMetaData#getSchemas()
          */
-        public List<String> getSchemas() {
+        public List<String> getSchemas(Session session) {
                 List<String> schemas = Lists.newArrayList();
 
-                try (Connection connection = getConnection()) {
+                try (Connection connection = getConnection(session)) {
                         DatabaseMetaData metadata = connection.getMetaData();
                         ResultSet rs = metadata.getSchemas();
 
@@ -256,6 +296,11 @@ public abstract class Driver implements SQLExecutor
                 } catch (SQLException e) {
                         throw new DriverException(e);
                 }
+        }
+
+        public List<String> getSchemas()
+        {
+                return getSchemas(null);
         }
 
         /**
@@ -273,7 +318,7 @@ public abstract class Driver implements SQLExecutor
          *
          * @return 保留关键字列表（永不返回 {@code null}，若无关键字则返回空列表）
          */
-        public abstract List<Suggestion> getSuggestion(Session session);
+        public abstract List<Suggestion> getSuggestions(Session session);
 
         /**
          * 获取指定会话上下文中所有用户定义的表名称列表。
@@ -341,7 +386,7 @@ public abstract class Driver implements SQLExecutor
 
                         String createTableDDL = dialect.normalize(showCreateTable(session, table));
 
-                        SQLUtils.parseColumnDefSpec(createTableDDL, dialect, columnMap);
+                        SQLParser.parseColumnDefSpec(createTableDDL, dialect, columnMap);
 
                         /* 防篡改码生成 */
                         columns.forEach(Column::finalIntegrityCode);
@@ -718,42 +763,67 @@ public abstract class Driver implements SQLExecutor
         /*                                SQL EXECUTOR IMPLEMENTS                              */
         /* *********************************************************************************** */
 
+        private static final SQLExecuteCallback DEFAULT_SQL_EXECUTE_CALLBACK = new SQLExecuteCallback() {};
+
         @Override
-        public DataGrid selectByPage(Session session, String table, int off, int size)
+        public QueryResult selectByPage(Session session, String table, int off, int size)
         {
                 String sql = fmt("SELECT * FROM %s", dialect.quote(table));
                 return execute(session, new SQL(dialect.limit(sql, off, size)));
         }
 
         @Override
-        public DataGrid execute(long jobId, Session session, SQL sql)
+        public QueryResult execute(long jobId, Session session, SQL sql)
+        {
+                return execute(jobId, session, sql, DEFAULT_SQL_EXECUTE_CALLBACK);
+        }
+
+        public QueryResult execute(long jobId, Session session, SQL sql, SQLExecuteCallback callback)
         {
                 try (Connection connection = getConnection(session)) {
-                        try (Statement statement = new StatementProxy(connection.createStatement())) {
-                                DataGrid dataGrid = new DataGrid(session, this, sql);
-
+                        try (Statement statement = connection.createStatement()) {
+                                QueryResult queryResult = null;
                                 taskQueue.put(jobId, statement);
-
-                                SQLParsedStatement eps = sql.popupEnd();
+                                SQLParsedStatement lastPS = sql.getLast();
 
                                 for (SQLParsedStatement ps : sql) {
+                                        String currentExecuteSQL = ps.toString();
+
                                         switch (ps.getCommand()) {
-                                                case EXECUTE -> statement.execute(ps.toString());
-                                                case EXECUTE_UPDATE -> statement.executeUpdate(ps.toString());
-                                                case EXECUTE_QUERY -> {}
-                                        }
-                                }
+                                                case EXECUTE -> {
+                                                        callback.execute(currentExecuteSQL);
+                                                        long startTime = System.currentTimeMillis();
+                                                        statement.execute(currentExecuteSQL);
+                                                        long endTime = System.currentTimeMillis();
+                                                        callback.cost(endTime - startTime);
+                                                }
 
-                                sql.pushback(eps);
+                                                case EXECUTE_UPDATE -> {
+                                                        callback.executeUpdate(currentExecuteSQL);
+                                                        long startTime = System.currentTimeMillis();
+                                                        int row = statement.executeUpdate(currentExecuteSQL);
+                                                        long endTime = System.currentTimeMillis();
+                                                        callback.row(row);
+                                                        callback.cost(endTime - startTime);
+                                                }
 
-                                switch (eps.getCommand()) {
-                                        case EXECUTE -> statement.execute(eps.toString());
-                                        case EXECUTE_UPDATE -> statement.executeUpdate(eps.toString());
-                                        case EXECUTE_QUERY -> {
-                                                ResultSet rs = statement.executeQuery(eps.toString());
-                                                ResultSets.toDataGrid(connection, eps, rs, dialect, dataGrid);
-                                                return dataGrid;
+                                                case EXECUTE_QUERY -> {
+                                                        if (ps == lastPS) {
+                                                                callback.executeQuery(currentExecuteSQL, false);
+                                                                long startTime = System.currentTimeMillis();
+                                                                ResultSet rs = statement.executeQuery(currentExecuteSQL);
+                                                                queryResult = new QueryResult(session, this, sql);
+                                                                ResultSets.toDataGrid(connection, ps, rs, dialect, queryResult);
+                                                                long endTime = System.currentTimeMillis();
+                                                                callback.cost(endTime - startTime);
+                                                        } else {
+                                                                callback.executeQuery(currentExecuteSQL, true);
+                                                        }
+                                                }
                                         }
+
+                                        if (ps == lastPS && queryResult != null)
+                                                return queryResult;
                                 }
 
                                 return null;
@@ -764,10 +834,10 @@ public abstract class Driver implements SQLExecutor
         }
 
         @Override
+        @SuppressWarnings("ALL")
         public void cancel(long jobId)
         {
                 if (taskQueue.containsKey(jobId))
                         Captor.call(() -> taskQueue.remove(jobId).cancel());
         }
-
 }

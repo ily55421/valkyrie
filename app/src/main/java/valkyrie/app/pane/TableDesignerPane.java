@@ -10,9 +10,11 @@ import javafx.scene.layout.BorderPane;
 import valkyrie.app.assets.Assets;
 import valkyrie.app.pane.designer.TableColumnDesignerPane;
 import valkyrie.app.pane.designer.TableIndexDesignerPane;
-import valkyrie.app.widgets.VkIconButton;
-import valkyrie.app.widgets.VkSeparator;
+import valkyrie.app.widgets.VkSeparatorItem;
+import valkyrie.app.widgets.VkToolBar;
+import valkyrie.app.widgets.VkToolButton;
 import valkyrie.app.widgets.dialog.VkDialogHelper;
+import valkyrie.app.widgets.table.VkDataTableView;
 import valkyrie.app.widgets.table.VkTableColumnFactory;
 import valkyrie.app.widgets.table.VkTableView;
 import valkyrie.app.widgets.table.cell.VkCheckBoxTableCell;
@@ -35,17 +37,17 @@ public class TableDesignerPane extends BorderPane
         private final Session session;
         private final Driver driver;
         private final Table table;
-        private final VkTableView<Column> structureView = new VkTableView<>();
-        private final VkTableView<Index> indexView = new VkTableView<>();
-        private final ToolBar toolBar = new ToolBar();
+        private final VkTableView<Column> structureView = new VkDataTableView<>();
+        private final VkTableView<Index> indexView = new VkDataTableView<>();
+        private final VkToolBar toolBar = new VkToolBar();
         private final TabPane tabPane = new TabPane();
         private final Tab structureTab = new Tab("表结构");
         private final Tab indexTab = new Tab("索引");
 
-        private final Button saveButton = new VkIconButton("保存", "storage");
-        private final Button plusButton = new VkIconButton("新增行", "plus");
-        private final Button minusButton = new VkIconButton("删除行", "minus");
-        private final Button reloadButton = new VkIconButton("刷新", "reload");
+        private final Button saveButton = new VkToolButton("保存", "storage");
+        private final Button plusButton = new VkToolButton("新增行", "plus");
+        private final Button minusButton = new VkToolButton("删除行", "minus");
+        private final Button reloadButton = new VkToolButton("刷新", "reload");
 
         private Node oldGraphic;
         private final ProgressIndicator progressIndicator = Assets.newProgressIndicator();
@@ -122,10 +124,10 @@ public class TableDesignerPane extends BorderPane
 
                 toolBar.getItems().addAll(
                         saveButton,
-                        new VkSeparator(),
+                        new VkSeparatorItem(),
                         plusButton,
                         minusButton,
-                        new VkSeparator(),
+                        new VkSeparatorItem(),
                         reloadButton
                 );
         }

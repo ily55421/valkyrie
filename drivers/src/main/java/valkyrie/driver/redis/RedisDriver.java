@@ -3,21 +3,22 @@ package valkyrie.driver.redis;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.commands.ProtocolCommand;
 import valkyrie.driver.api.*;
+import valkyrie.driver.api.exception.DriverException;
+import valkyrie.driver.api.node.DBNode;
+import valkyrie.driver.api.node.DBNodeKind;
+import valkyrie.driver.api.node.DBNodePath;
 import valkyrie.driver.api.sql.SQL;
 import valkyrie.driver.suggestion.Suggestion;
 import valkyrie.utils.collection.Lists;
 
-import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 import static valkyrie.utils.TypeConverter.atos;
-import static valkyrie.utils.string.StaticLibrary.fmt;
-import static valkyrie.utils.string.StaticLibrary.strip;
+import static valkyrie.utils.string.StrStaticImports.strip;
 
 /**
  * Redis 驱动层实现
@@ -36,79 +37,108 @@ public class RedisDriver extends Driver
          * @param dataSource 数据源，用于获取数据库连接（不能为 {@code null}）
          * @throws NullPointerException 如果 {@code dataSource} 为 {@code null}
          */
-        public RedisDriver(DataSource dataSource) {
+        public RedisDriver(VkDataSource dataSource) {
                 super(dataSource);
                 this.jedis = ((RedisDataSource) dataSource).getJedis();
         }
 
+        private static Integer parseCatalogLabel(String label)
+        {
+                return Integer.valueOf(label.substring(2, label.indexOf(" (")));
+        }
+
         @Override
-        public List<Catalog> getCatalogs() {
-                List<Catalog> catalogs = Lists.newArrayList();
+        public List<String> getCatalogs() {
+                List<String> catalogs = Lists.newArrayList();
                 int count = Integer.parseInt(jedis.configGet("databases").get("databases"));
-                NumberFormat numberFormat = NumberFormat.getInstance();
 
                 for (int i = 0; i < count; i++) {
                         jedis.select(i);
                         long dbSize = jedis.dbSize();
-                        if (dbSize > 0) {
-                                String index = String.valueOf(i);
-                                String lab = fmt("DB%s (%s keys)", index, numberFormat.format(dbSize));
-                                catalogs.add(Catalog.of(lab, index));
-                        }
+                        if (dbSize > 0)
+                                catalogs.add(String.valueOf(i));
                 }
 
                 return catalogs;
         }
 
         @Override
-        public DataGrid execute(long jobId, Session session, SQL sql)
+        public QueryResult execute(long jobId, Session session, SQL sql, SQLExecuteCallback callback)
         {
-                jedis.select(Integer.parseInt(session.catalog()));
+                String currentCommandRef;
 
-                String[] parts = strip(sql.getRaw()).split("\\s+");
-                ProtocolCommand cmd = () -> parts[0].getBytes(StandardCharsets.UTF_8);
-                byte[][] args = new byte[parts.length - 1][];
+                try {
+                        jedis.select(Integer.parseInt(session.catalog()));
+                        currentCommandRef = sql.getRaw();
+                        callback.execute(currentCommandRef);
+                        String[] parts = strip(currentCommandRef).split("\\s+");
+                        ProtocolCommand cmd = () -> parts[0].getBytes(StandardCharsets.UTF_8);
+                        byte[][] args = new byte[parts.length - 1][];
 
-                for (int i = 1; i < parts.length; i++)
-                        args[i - 1] = parts[i].getBytes(StandardCharsets.UTF_8);
+                        for (int i = 1; i < parts.length; i++)
+                                args[i - 1] = parts[i].getBytes(StandardCharsets.UTF_8);
 
-                // GET serviceCalendar|2026-04
-                Object result = jedis.sendCommand(cmd, args);
+                        // GET serviceCalendar|2026-04
+                        Object result = jedis.sendCommand(cmd, args);
 
-                return switch (result) {
-                        case null -> DataGrid.ofValue(session, null);
+                        long startTime = System.currentTimeMillis();
 
-                        case byte[] b -> DataGrid.ofValue(session, atos(b));
+                        var ret = switch (result) {
+                                case null -> QueryResult.ofValue(session, null);
+                                case byte[] b -> QueryResult.ofValue(session, atos(b));
+                                case Long l -> QueryResult.ofValue(session, atos(l));
+                                case List<?> list -> {
+                                        List<?> mut = list;
 
-                        case Long l -> DataGrid.ofValue(session, atos(l));
+                                        if (mut.isEmpty())
+                                                yield QueryResult.ofList(session, List.of());
 
-                        case List<?> list -> {
-                                List<?> mut = list;
+                                        List<String> values = new ArrayList<>();
+                                        Object second = mut.get(1);
 
-                                if (mut.isEmpty())
-                                        yield DataGrid.ofList(session, List.of());
+                                        if (second instanceof List<?> byteList)
+                                                mut = byteList;
 
-                                List<String> values = new ArrayList<>();
-                                Object second = mut.get(1);
+                                        for (Object v : mut)
+                                                values.add(atos((byte[]) v));
 
-                                if (second instanceof List<?> byteList)
-                                        mut = byteList;
+                                        yield QueryResult.ofList(session, values);
+                                }
+                                default -> QueryResult.ofValue(session, result.toString());
+                        };
 
-                                for (Object v : mut)
-                                        values.add(atos((byte[]) v));
+                        long endTime = System.currentTimeMillis();
+                        callback.cost(endTime - startTime);
 
-                                yield DataGrid.ofList(session, values);
-                        }
-
-                        default -> DataGrid.ofValue(session, result.toString());
-                };
-
+                        return ret;
+                } catch (Exception e) {
+                        throw new DriverException(e);
+                }
         }
 
         @Override
         public DbType getType()
         {
                 return DbType.redis;
+        }
+
+        @Override
+        public List<DBNode> getNodeHierarchy()
+        {
+                List<DBNode> ret = Lists.newArrayList();
+                RedisMetadataProvider metadataProvider = new RedisMetadataProvider(this);
+
+                List<String> catalogs = getCatalogs();
+                for (String catalog : catalogs)
+                        ret.add(new RedisCatalogNode(catalog, metadataProvider));
+
+                return ret;
+        }
+
+        @Override
+        public DBNodePath getNodeHierarchyPath()
+        {
+                return new DBNodePath(DBNodeKind.CATALOG, null);
         }
 
         @Override
@@ -124,7 +154,7 @@ public class RedisDriver extends Driver
         }
 
         @Override
-        public List<Suggestion> getSuggestion(Session session)
+        public List<Suggestion> getSuggestions(Session session)
         {
                 return Lists.newArrayList(RedisSuggestions.VALUES);
         }

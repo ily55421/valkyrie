@@ -40,16 +40,10 @@
     window.Suggestions = [];
 
     window.addSuggestions = function (suggestions) {
-        suggestions.forEach(it => {
-            const exists = window.Suggestions.some(v =>
-                v.label === it.label &&
-                v.kind === it.kind
-            );
-
-            if (!exists) {
-                window.Suggestions.push(it);
-            }
-        });
+        const start = performance.now();
+        window.Suggestions = window.Suggestions = suggestions;
+        const end = performance.now();
+        console.log(`window#addSuggestions 耗时: ${end - start} ms`);
     }
 
     require(['vs/editor/editor.main'], function () {
@@ -57,7 +51,7 @@
             document.getElementById('container'), {
                 value: '',
                 language: 'sql',
-                fontSize: 14,
+                fontSize: 16,
                 automaticLayout: true,
                 roundedSelection: false,
                 mouseWheelScrollSensitivity: 0.03,
@@ -125,6 +119,13 @@
             }
         });
 
+        editor.onDidChangeModelContent((event) => {
+            if (event.isFlush)
+                return;
+
+            window.hook.onDidChangeModelContent();
+        });
+
         /**
          * Ctrl + W
          * 智能扩大选择
@@ -178,10 +179,17 @@
                 range = selection;
             }
 
+            if (range.isEmpty())
+                return;
+
+            editor.pushUndoStop();
+
             editor.executeEdits('', [{
                 range: range,
                 text: ''
             }]);
+
+            editor.pushUndoStop();
 
             window.writeClipboard(text);
         });

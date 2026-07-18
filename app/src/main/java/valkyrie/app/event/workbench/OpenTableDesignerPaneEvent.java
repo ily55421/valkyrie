@@ -3,12 +3,10 @@ package valkyrie.app.event.workbench;
 import javafx.scene.Node;
 import javafx.scene.control.Tab;
 import valkyrie.app.assets.Assets;
+import valkyrie.app.explorer.UITableDynamicNode;
 import valkyrie.app.pane.TableDesignerPane;
-import valkyrie.driver.api.Driver;
-import valkyrie.driver.api.Session;
-import valkyrie.driver.api.Table;
 
-import static valkyrie.utils.string.StaticLibrary.fmt;
+import static valkyrie.utils.string.StrStaticImports.fmt;
 
 /**
  * 打开设计表面板事件
@@ -18,30 +16,30 @@ import static valkyrie.utils.string.StaticLibrary.fmt;
  */
 public class OpenTableDesignerPaneEvent extends OpenTabEvent
 {
-        private final String conn;
-        private final Session session;
-        private final Driver driver;
-        private final Table table;
+        private final UITableDynamicNode tableDynamicNode;
 
-        public OpenTableDesignerPaneEvent(Object owner, String conn, Session session, Driver driver, Table table)
+        public OpenTableDesignerPaneEvent(UITableDynamicNode owner)
         {
                 super(owner);
-                this.conn = conn;
-                this.session = session;
-                this.driver = driver;
-                this.table = table;
+                this.tableDynamicNode = owner;
         }
 
         @Override
         public String tabId()
         {
-                return fmt("%s@%s(%s)", table.getName(), session.scope(), conn);
+                return fmt("D#%s@%s(%s)",
+                        tableDynamicNode.getPathNode().getLabel(),
+                        tableDynamicNode.getLabel(),
+                        tableDynamicNode.getRoot().getLabel());
         }
 
         @Override
         public Node createPane(Tab tab)
         {
-                TableDesignerPane pane = new TableDesignerPane(tab, session, driver, table);
+                TableDesignerPane pane = new TableDesignerPane(tab,
+                        tableDynamicNode.getSession(),
+                        tableDynamicNode.getDriver(),
+                        tableDynamicNode.getTable());
                 tab.setGraphic(Assets.use("struct1"));
                 return pane;
         }

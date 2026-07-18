@@ -2,7 +2,7 @@ package valkyrie.driver.mysql;
 
 import valkyrie.driver.api.Dialect;
 
-import static valkyrie.utils.string.StaticLibrary.strcut;
+import static valkyrie.utils.string.StrStaticImports.strcut;
 
 /**
  * @author Luo Tiansheng
@@ -10,18 +10,6 @@ import static valkyrie.utils.string.StaticLibrary.strcut;
  */
 public class MySQLDialect implements Dialect
 {
-        @Override
-        public String limit(String sql, int off, int size)
-        {
-                return sql + " LIMIT " + size + " OFFSET " + off;
-        }
-
-        @Override
-        public String normalize(String sql)
-        {
-                return sql;
-        }
-
         @Override
         public String quote(String identifier)
         {

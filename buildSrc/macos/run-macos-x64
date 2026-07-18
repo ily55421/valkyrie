@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cd '../../build/Valkyrie DB.app/Contents/MacOS'
+./Valkyrie\ DB

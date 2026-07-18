@@ -1,0 +1,39 @@
+.context-menu {
+    -fx-background-color: rgb(252, 252, 253);
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-border-color: rgb(225, 227, 230);
+    -fx-padding: 5 0;
+}
+
+.menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 6 16;
+    -fx-background-radius: 8;
+    -fx-background-insets: 2 6;
+    -fx-font-size: 13.5;
+    -fx-text-fill: #1c1c1e;
+}
+
+.menu-item:hover, .menu-item:focused {
+    -fx-background-color: #007aff;
+}
+
+.menu-item:hover .label, .menu-item:focused .label {
+    -fx-text-fill: white;
+}
+
+.menu-item .accelerator-text {
+    -fx-text-fill: #7c7c82;
+}
+
+.menu-item:hover .accelerator-text {
+    -fx-text-fill: white;
+}
+
+.separator .line {
+    -fx-border-color: #d4d4d8;
+    -fx-border-width: 0.5;
+    -fx-border-insets: 0 10;
+}

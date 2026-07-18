@@ -23,12 +23,19 @@ import valkyrie.utils.Captor;
 import valkyrie.utils.Optional;
 import valkyrie.utils.collection.Lists;
 import valkyrie.utils.exception.IOReadException;
-import valkyrie.utils.string.StaticLibrary;
+import valkyrie.utils.string.StrStaticImports;
 import valkyrie.utils.system.OS;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
@@ -298,7 +305,10 @@ public class UFile extends java.io.File {
      */
     @Override
     public UFile[] listFiles() {
-        List<UFile> list = Lists.map(super.listFiles(), UFile::wrap);
+        File[] files = super.listFiles();
+        if (files == null)
+            return new UFile[0];
+        List<UFile> list = Lists.map(files, UFile::wrap);
         UFile[] fs = new UFile[list.size()];
         list.toArray(fs);
         return fs;
@@ -310,7 +320,13 @@ public class UFile extends java.io.File {
      */
     public String getCleanName() {
         String name = getName();
-        return StaticLibrary.strcut(getName(), 0, name.lastIndexOf("."));
+        return StrStaticImports.strcut(getName(), 0, name.lastIndexOf("."));
+    }
+
+    @Override
+    public String getPath()
+    {
+        return super.getPath().replaceAll("\\\\", "/");
     }
 
     /**
@@ -321,7 +337,7 @@ public class UFile extends java.io.File {
      * @return 当前 File 文件和 {@code extension} 一致返回 `true`
      */
     public boolean typeEquals(String extension) {
-        return StaticLibrary.streq(extension, getExtension());
+        return StrStaticImports.streq(extension, getExtension());
     }
 
     /**
@@ -336,7 +352,7 @@ public class UFile extends java.io.File {
      *         否则返回 {@code false}
      */
     public boolean typeMatch(String... extensions) {
-        return StaticLibrary.strcheckin(getExtension(), extensions);
+        return StrStaticImports.strhas(getExtension(), extensions);
     }
 
     /**
@@ -347,7 +363,7 @@ public class UFile extends java.io.File {
         int index = name.indexOf(".");
         if (index == -1)
             return "";
-        return StaticLibrary.strcut(getName(), index, 0);
+        return StrStaticImports.strcut(getName(), index, 0);
     }
 
     private boolean forceDeleteDirectory(UFile dir) {
@@ -822,6 +838,37 @@ public class UFile extends java.io.File {
             throw new IOReadException(e);
         }
         return properties;
+    }
+
+    private BasicFileAttributes getBasicFileAttributes() throws IOException
+    {
+        return Files.readAttributes(Paths.get(getPath()), BasicFileAttributes.class);
+    }
+
+    public String getOwner()
+    {
+        return Optional.ifError(() -> Files.getOwner(toPath()).getName(), null);
+    }
+
+    public Date getCreatingTime() {
+        return Optional.ifError(() -> {
+            FileTime fileTime = getBasicFileAttributes().creationTime();
+            return new Date(fileTime.toMillis());
+        }, null);
+    }
+
+    public Date getLastModifiedTime() {
+        return Optional.ifError(() -> {
+            FileTime fileTime = getBasicFileAttributes().lastModifiedTime();
+            return new Date(fileTime.toMillis());
+        }, null);
+    }
+
+    public Date getLastAccessTime() {
+        return Optional.ifError(() -> {
+            FileTime fileTime = getBasicFileAttributes().lastAccessTime();
+            return new Date(fileTime.toMillis());
+        }, null);
     }
 
 }

@@ -26,8 +26,8 @@ import valkyrie.utils.exception.ValidationException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-import static valkyrie.utils.string.StaticLibrary.strcheckin;
-import static valkyrie.utils.string.StaticLibrary.strlen;
+import static valkyrie.utils.string.StrStaticImports.strhas;
+import static valkyrie.utils.string.StrStaticImports.strlen;
 
 /**
  * `DateFormatter` 类提供日期和时间的格式化和解析功能。
@@ -170,19 +170,19 @@ public class DateFormatter {
         int match = strlen(text);
         switch (match) {
             case STRING_TEMP_DATE_MONTH: {
-                return strcheckin(text, "-")
+                return strhas(text, "-")
                         ? parse(text, "yyyy-MM")
                         : parse(text, "yyyy/MM");
             }
 
             case STRING_TEMP_DATE_DAY: {
-                return strcheckin(text, "-")
+                return strhas(text, "-")
                         ? parse(text, "yyyy-MM-dd")
                         : parse(text, "yyyy/MM/dd");
             }
 
             case STRING_TEMP_DATE_TIME: {
-                return strcheckin(text, "-")
+                return strhas(text, "-")
                         ? parse(text, "yyyy-MM-dd HH:mm:ss")
                         : parse(text, "yyyy/MM/dd HH:mm:ss");
             }

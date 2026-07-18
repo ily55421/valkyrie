@@ -2,7 +2,7 @@ package valkyrie.core.repository;
 
 import valkyrie.core.Users;
 import valkyrie.core.exception.CoreException;
-import valkyrie.core.model.ConnectionProfile;
+import valkyrie.core.model.DiskSavedConnection;
 import valkyrie.core.utils.FileUtils;
 import valkyrie.core.utils.JSONUtils;
 import valkyrie.utils.Captor;
@@ -27,24 +27,22 @@ public class ConnectionRepository
         @SuppressWarnings("ResultOfMethodCallIgnored")
         public static void saveConnection(String name, String content)
         {
-                File dir = new File(Users.connectionDir, name);
-                File vdbc = new File(dir, ".vdbc");
+                UFile dir = new UFile(Users.connectionDir, name);
+                UFile meta = new UFile(dir, Users.META_INF);
 
-                if (vdbc.exists())
+                if (meta.exists())
                         throw new CoreException(name + "已存在！");
 
                 dir.mkdirs();
 
-                if (!vdbc.exists())
-                        Captor.call(vdbc::createNewFile);
+                if (!meta.exists())
+                        Captor.call(meta::createNewFile);
 
-                try (FileOutputStream fos = new FileOutputStream(vdbc)) {
-
+                try (FileOutputStream fos = new FileOutputStream(meta)) {
                         fos.write(content.getBytes(StandardCharsets.UTF_8));
-
                 } catch (IOException e) {
                         /* 删除文件夹 */
-                        FileUtils.forceDelete(dir);
+                        dir.forceDelete();
                         throw new CoreException(e);
                 }
         }
@@ -59,9 +57,8 @@ public class ConnectionRepository
                         oldDir.renameTo(newDir);
                 }
 
-                File vdbc = new File(newDir, ".vdbc");
-
-                FileUtils.forceDelete(vdbc);
+                UFile meta = new UFile(newDir, Users.META_INF);
+                meta.forceDelete();
 
                 saveConnection(newName, content);
         }
@@ -71,33 +68,33 @@ public class ConnectionRepository
                 new UFile(Users.connectionDir, name).forceDelete();
         }
 
-        public static List<ConnectionProfile> loadConnections()
+        public static List<DiskSavedConnection> loadConnections()
         {
-                File[] files = Users.connectionDir.listFiles();
-                List<ConnectionProfile> ret = new ArrayList<>();
+                UFile[] files = Users.connectionDir.listFiles();
+                List<DiskSavedConnection> ret = new ArrayList<>();
 
                 if (files == null)
                         return ret;
 
-                for (File file : files) {
-                        File vdbc = new File(file, ".vdbc");
+                for (UFile file : files) {
+                        UFile meta = new UFile(file, Users.META_INF);
 
                         if (FileUtils.isDeepEmptyDirectory(file)) {
-                                FileUtils.forceDelete(file);
+                                file.forceDelete();
                                 continue;
                         }
 
-                        try (FileInputStream fis = new FileInputStream(vdbc)) {
+                        try (FileInputStream fis = new FileInputStream(meta)) {
                                 byte[] bytes = fis.readAllBytes();
                                 String content = new String(bytes, StandardCharsets.UTF_8);
-                                ret.add(JSONUtils.toJavaObject(content, ConnectionProfile.class));
+                                ret.add(JSONUtils.toJavaObject(content, DiskSavedConnection.class));
                         } catch (Exception e) {
                                 throw new CoreException(e);
                         }
                 }
 
                 Collator collator = Collator.getInstance(Locale.CHINA);
-                ret.sort(Comparator.comparing(ConnectionProfile::getName, collator));
+                ret.sort(Comparator.comparing(DiskSavedConnection::getName, collator));
 
                 return ret;
         }

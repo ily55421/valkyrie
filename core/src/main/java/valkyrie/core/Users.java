@@ -1,6 +1,6 @@
 package valkyrie.core;
 
-import java.io.File;
+import valkyrie.utils.io.UFile;
 
 /**
  * 用户数据
@@ -11,6 +11,7 @@ import java.io.File;
 public class Users
 {
         public static final String userHome = System.getProperty("user.home");
-        public static final File baseDir = new File(userHome, ".vdb");
-        public static final File connectionDir = new File(baseDir, "C");
+        public static final String META_INF = ".META-INF";
+        public static final UFile baseDir = new UFile(userHome, ".valkyries");
+        public static final UFile connectionDir = new UFile(baseDir, "C");
 }

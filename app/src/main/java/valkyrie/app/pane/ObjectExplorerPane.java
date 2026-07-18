@@ -1,7 +1,6 @@
 package valkyrie.app.pane;
 
 import javafx.animation.PauseTransition;
-import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.control.*;
@@ -16,20 +15,20 @@ import valkyrie.app.event.RefreshConnectionEvent;
 import valkyrie.app.event.bus.Event;
 import valkyrie.app.event.bus.EventBus;
 import valkyrie.app.event.bus.EventListener;
+import valkyrie.app.explorer.GlobalDynamicNodeContext;
 import valkyrie.app.explorer.UIConnectionNode;
 import valkyrie.app.explorer.UIExplorerNode;
 import valkyrie.app.menu.ConnectionMenuBuilder;
 import valkyrie.app.model.ConnectionPropertyModel;
-import valkyrie.app.model.UIExplorerStatus;
+import valkyrie.app.widgets.VkContextMenu;
 import valkyrie.app.widgets.VkTextField;
-import valkyrie.core.model.ConnectionProfile;
+import valkyrie.core.model.DiskSavedConnection;
 import valkyrie.core.repository.ConnectionRepository;
-import valkyrie.utils.thread.ThreadPool;
 
 import java.text.Collator;
 import java.util.*;
 
-import static valkyrie.utils.string.StaticLibrary.strimatch;
+import static valkyrie.utils.string.StrStaticImports.strimatch;
 
 /**
  * 导航面板
@@ -42,7 +41,7 @@ public class ObjectExplorerPane extends VBox implements EventListener
 {
         private final TabPane tabPane;
         private final TreeView<String> treeView;
-        private final ContextMenu rootContextMenu;
+        private final VkContextMenu rootContextMenu;
 
         private final TreeItem<String> root = new TreeItem<>("我的连接", Assets.use("chain"));
         private final VkTextField search = new VkTextField();
@@ -55,7 +54,7 @@ public class ObjectExplorerPane extends VBox implements EventListener
                 this.treeView = createTreeView();
                 this.rootContextMenu = createRootContextMenu();
 
-                EventBus.subscribe(RefreshConnectionEvent.class, this);
+                EventBus.subscribe(this, RefreshConnectionEvent.class);
 
                 setupContextMenu();
                 setupSearchField();
@@ -79,7 +78,7 @@ public class ObjectExplorerPane extends VBox implements EventListener
                 TabPane tabPane = new TabPane();
 
                 Tab navTab = new Tab("连接管理");
-                navTab.setGraphic(Assets.use("nav0"));
+                navTab.setGraphic(Assets.use("navigation"));
                 navTab.setClosable(false);
 
                 tabPane.getTabs().addAll(navTab);
@@ -100,7 +99,7 @@ public class ObjectExplorerPane extends VBox implements EventListener
                                         return;
                                 }
 
-                                TreeItem<String> filteredRoot = filterTree(treeView.getRoot(), newVal);
+                                TreeItem<String> filteredRoot = filterTree(root, newVal);
 
                                 filteredRoot.setExpanded(true);
                                 treeView.setRoot(filteredRoot);
@@ -116,8 +115,7 @@ public class ObjectExplorerPane extends VBox implements EventListener
         }
 
         private TreeItem<String> filterTree(TreeItem<String> root, String keyword)
-        {
-                TreeItem<String> result = new TreeItem<>(root.getValue(), root.getGraphic());
+        {TreeItem<String> result = new TreeItem<>(root.getValue(), root.getGraphic());
 
                 for (TreeItem<String> child : root.getChildren()) {
                         TreeItem<String> filteredChild = filterTree(child, keyword);
@@ -141,44 +139,22 @@ public class ObjectExplorerPane extends VBox implements EventListener
                 return treeView;
         }
 
-        private ContextMenu createRootContextMenu()
+        private VkContextMenu createRootContextMenu()
         {
-                ContextMenu rootContextMenu = new ContextMenu();
+                VkContextMenu rootContextMenu = new VkContextMenu();
 
                 Menu newConnectionMenu = ConnectionMenuBuilder.buildMenu();
-                MenuItem openAllItem = new MenuItem("打开所有连接");
-                openAllItem.setOnAction(event -> batchOpenConnection());
-                MenuItem closeAllItem = new MenuItem("关闭所有连接");
-                closeAllItem.setOnAction(event -> batchCloseConnection());
                 MenuItem refreshAllItem = new MenuItem("刷新连接");
 
                 rootContextMenu.getItems().addAll(
                         newConnectionMenu,
                         new SeparatorMenuItem(),
-                        openAllItem,
-                        closeAllItem,
                         refreshAllItem);
 
                 /* 设置事件 */
                 refreshAllItem.setOnAction(event -> refreshConnectionNode());
 
                 return rootContextMenu;
-        }
-
-        private void batchOpenConnection()
-        {
-                for (UIConnectionNode node : connections.values()) {
-                        if (!node.isOpen())
-                                ThreadPool.taskSubmit(() -> Platform.runLater(node::openConnection));
-                }
-        }
-
-        private void batchCloseConnection()
-        {
-                for (UIConnectionNode node : connections.values()) {
-                        if (node.isOpen())
-                                ThreadPool.taskSubmit(node::closeConnection);
-                }
         }
 
         private void setupContextMenu()
@@ -199,17 +175,14 @@ public class ObjectExplorerPane extends VBox implements EventListener
                                         return;
 
                                 if (item == treeView.getRoot()) {
-                                        rootContextMenu.show(cell, x, y);
+                                        rootContextMenu.show(x, y);
                                         return;
                                 }
 
-                                if (item instanceof UIExplorerNode vdbNode) {
-                                        vdbNode.showContextMenu(cell, x, y);
-                                        return;
+                                if (item instanceof UIExplorerNode explorerNode) {
+                                        explorerNode.showContextMenu(x, y);
                                 }
                         }
-
-                        event.consume();
                 });
         }
 
@@ -218,11 +191,10 @@ public class ObjectExplorerPane extends VBox implements EventListener
                 treeView.getSelectionModel().selectedIndexProperty()
                         .addListener((observable, oldVal, newVal) -> {
                                 TreeItem<String> treeItem = treeView.getTreeItem(newVal.intValue());
-
-                                if (treeItem instanceof UIExplorerNode vdbNode) {
-                                        vdbNode.onSelectedEvent(vdbNode);
+                                if (treeItem instanceof UIExplorerNode node) {
+                                        node.onSelectedEvent(node);
+                                        GlobalDynamicNodeContext.onSelectedEvent(node);
                                 }
-
                         });
         }
 
@@ -241,7 +213,7 @@ public class ObjectExplorerPane extends VBox implements EventListener
                                         if (!(item instanceof UIExplorerNode vdbNode))
                                                 return;
 
-                                        vdbNode.onMouseDoubleClickEvent(event);
+                                        vdbNode.onMouseDoubleClickEvent();
                                 }
 
                                 event.consume();
@@ -264,7 +236,7 @@ public class ObjectExplorerPane extends VBox implements EventListener
         private void refreshConnectionNode()
         {
                 List<UIConnectionNode> removeList = new ArrayList<>();
-                List<ConnectionProfile> profiles = ConnectionRepository.loadConnections();
+                List<DiskSavedConnection> profiles = ConnectionRepository.loadConnections();
 
                 connections.forEach((k, v) -> {
                         boolean isMatch = profiles.stream()
@@ -279,18 +251,17 @@ public class ObjectExplorerPane extends VBox implements EventListener
                 if (!removeList.isEmpty()) {
                         for (UIConnectionNode connection : removeList) {
                                 children.remove(connection);
-                                connections.remove(connection.getName());
+                                connections.remove(connection.getLabel());
                         }
                 }
 
-                for (ConnectionProfile profile : profiles) {
+                for (DiskSavedConnection profile : profiles) {
                         if (connections.containsKey(profile.getName()))
                                 continue;
 
                         ConnectionPropertyModel propertyModel = new ConnectionPropertyModel(profile);
 
-                        UIConnectionNode connection = new UIConnectionNode(propertyModel);
-                        UIExplorerStatus.getInstance().addConnection(connection);
+                        UIConnectionNode connection = new UIConnectionNode(treeView, propertyModel);
                         connections.put(profile.getName(), connection);
                         children.add(connection);
 
@@ -299,7 +270,7 @@ public class ObjectExplorerPane extends VBox implements EventListener
 
                 Collator collator = Collator.getInstance(Locale.CHINA);
                 children.sort(Comparator.comparing(
-                        node -> ((UIConnectionNode) node).getName(), collator));
+                        node -> ((UIConnectionNode) node).getLabel(), collator));
         }
 
 }

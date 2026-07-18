@@ -3,57 +3,42 @@ package valkyrie.app.event.workbench;
 import javafx.scene.Node;
 import javafx.scene.control.Tab;
 import valkyrie.app.assets.Assets;
-import valkyrie.app.explorer.UICatalogNode;
-import valkyrie.app.pane.TableDataPane;
-import valkyrie.driver.api.Driver;
-import valkyrie.driver.api.Session;
-import valkyrie.driver.api.Table;
+import valkyrie.app.explorer.UITableDynamicNode;
+import valkyrie.app.pane.QueryResultPane;
 
-import static valkyrie.utils.string.StaticLibrary.fmt;
+import static valkyrie.utils.string.StrStaticImports.fmt;
 
 /**
- * 打开数据库表预览面板
- *
  * @author Luo Tiansheng
- * @since 2026/3/26
+ * @since 2026/6/5
  */
 public class OpenTableDataPaneEvent extends OpenTabEvent
 {
-        public Session session;
-        public Driver driver;
-        public String db;
-        public Table table;
-        public String conn;
+        private final UITableDynamicNode tableDynamicNode;
 
-        public OpenTableDataPaneEvent(UICatalogNode catalog, Table table)
+        public OpenTableDataPaneEvent(UITableDynamicNode tableDynamicNode)
         {
-                this(catalog, catalog.getSession(), catalog.getDriver(), table,
-                        catalog.getConnection().getName(),
-                        catalog.getName());
-        }
-
-        public OpenTableDataPaneEvent(Object owner, Session session, Driver driver, Table table,
-                                      String conn, String db)
-        {
-                super(owner);
-                this.session = session;
-                this.driver = driver;
-                this.table = table;
-                this.conn = conn;
-                this.db = db;
+                super(tableDynamicNode);
+                this.tableDynamicNode = tableDynamicNode;
         }
 
         @Override
         public String tabId()
         {
-                return fmt("%s@%s(%s)", table.getName(), session.scope(), conn);
+                return fmt("V#%s@%s(%s)",
+                        tableDynamicNode.getPathNode().getLabel(),
+                        tableDynamicNode.getLabel(),
+                        tableDynamicNode.getRoot().getLabel());
         }
 
         @Override
         public Node createPane(Tab tab)
         {
                 tab.setGraphic(Assets.use("table"));
-                TableDataPane pane = new TableDataPane(tab, session, driver, table);
+                QueryResultPane pane = new QueryResultPane(tab,
+                        tableDynamicNode.getSession(),
+                        tableDynamicNode.getDriver(),
+                        tableDynamicNode.getTable());
                 pane.asyncUpdate();
                 return pane;
         }
