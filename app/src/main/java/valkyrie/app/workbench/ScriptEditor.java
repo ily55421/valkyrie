@@ -32,8 +32,8 @@ import valkyrie.app.widgets.VkSeparator;
 import valkyrie.app.widgets.dialog.VkDialogHelper;
 import valkyrie.core.model.ScriptFile;
 import valkyrie.core.repository.ScriptFileRepository;
-import valkyrie.driver.api.DataGrid;
 import valkyrie.driver.api.Driver;
+import valkyrie.driver.api.QueryResult;
 import valkyrie.driver.api.Session;
 import valkyrie.driver.api.sql.SQL;
 import valkyrie.monacofx.MonacoEditor;
@@ -127,12 +127,12 @@ public class ScriptEditor extends SplitPane implements EventListener
 
                 getItems().addAll(topBorderPane);
 
-                EventBus.subscribe(ConnectionOpenedNotifyEvent.class, this);
+                EventBus.subscribe(this, ConnectionOpenedNotifyEvent.class);
         }
 
         private void dispose()
         {
-                EventBus.unscribe(ConnectionOpenedNotifyEvent.class, this);
+                EventBus.unscribe(this, ConnectionOpenedNotifyEvent.class);
 
                 if (driver != null)
                         driver.cancel(currentTaskId);
@@ -146,8 +146,7 @@ public class ScriptEditor extends SplitPane implements EventListener
                 if (event instanceof ConnectionOpenedNotifyEvent e) {
                         UIConnectionNode selectedItem = connectionComboBox.getSelectionModel().getSelectedItem();
                         if (selectedItem == e.connection) {
-                                List<UICatalogNode> catalogNodes = selectedItem.getCatalogNodes();
-                                catalogComboBox.getItems().setAll(catalogNodes);
+                                // TODO: getCatalogNodes API changed
                         }
                 }
         }
@@ -243,8 +242,7 @@ public class ScriptEditor extends SplitPane implements EventListener
 
                 if (selectedConnection != null) {
                         connectionComboBox.getSelectionModel().select(selectedConnection);
-                        catalogComboBox.getItems().addAll(selectedConnection.getCatalogNodes());
-                        catalogComboBox.getSelectionModel().select(selectedConnection.getSelectedDatabase());
+                        // TODO: getCatalogNodes/getSelectedDatabase API changed
                 }
 
                 toolBar.getItems().addAll(
@@ -283,8 +281,8 @@ public class ScriptEditor extends SplitPane implements EventListener
 
                 /* 选中连接时打开连接 */
                 connection.valueProperty().addListener((obs, oldVal, newVal) -> {
-                        if (!newVal.isOpen())
-                                newVal.openConnection();
+                        if (!newVal.isConnect())
+                                newVal.connect();
                 });
 
                 return connection;
@@ -297,8 +295,7 @@ public class ScriptEditor extends SplitPane implements EventListener
                 catalog.setPrefWidth(200);
 
                 catalog.valueProperty().addListener((obs, oldVal, newVal) -> {
-                        if (!newVal.isOpen())
-                                newVal.openDatabase();
+                        // TODO: isOpen/openDatabase API changed
                 });
 
                 return catalog;
@@ -308,15 +305,13 @@ public class ScriptEditor extends SplitPane implements EventListener
         {
                 comboBox.getSelectionModel().selectedItemProperty()
                         .addListener((obs, oldVal, newVal) -> {
-                                editor.registerSuggestion(newVal.getCatalogSuggestion());
-                                newVal.getCatalogNodes().forEach(catalog ->
-                                        editor.registerSuggestion(catalog.getTableNameSuggestions()));
+                                // TODO: registerSuggestion/getCatalogSuggestion/getCatalogNodes API changed
                         });
 
                 comboBox.setOnAction(event -> {
                         UIConnectionNode item = comboBox.getSelectionModel().getSelectedItem();
                         if (item != null) {
-                                catalogComboBox.getItems().setAll(item.getCatalogNodes());
+                                // TODO: getCatalogNodes API changed
                         }
                 });
 
@@ -330,8 +325,8 @@ public class ScriptEditor extends SplitPane implements EventListener
                                 if (empty || item == null)
                                         return;
 
-                                setText(item.getName());
-                                setGraphic(item.getIcon());
+                                setText(item.getLabel());
+                                setGraphic(item.getGraphic());
                         }
                 });
 
@@ -345,8 +340,8 @@ public class ScriptEditor extends SplitPane implements EventListener
                                 if (empty || item == null)
                                         return;
 
-                                setText(item.getName());
-                                setGraphic(item.getIcon());
+                                setText(item.getLabel());
+                                setGraphic(item.getGraphic());
                         }
                 });
 
@@ -355,7 +350,7 @@ public class ScriptEditor extends SplitPane implements EventListener
                         @Override
                         public String toString(UIConnectionNode connection)
                         {
-                                return connection == null ? null : connection.getName();
+                                return connection == null ? null : connection.getLabel();
                         }
 
                         @Override
@@ -370,7 +365,7 @@ public class ScriptEditor extends SplitPane implements EventListener
         {
                 comboBox.getSelectionModel().selectedItemProperty()
                                 .addListener((obs, oldVal, newVal) -> {
-                                        editor.registerSuggestion(newVal.getSuggestion());
+                                        // registerSuggestion API changed
                                 });
 
                 comboBox.setButtonCell(new ListCell<>()
@@ -383,7 +378,7 @@ public class ScriptEditor extends SplitPane implements EventListener
                                 if (empty || item == null)
                                         return;
 
-                                setText(item.getName());
+                                setText(item.getLabel());
                                 setGraphic(Assets.use("database1"));
                         }
                 });
@@ -398,7 +393,7 @@ public class ScriptEditor extends SplitPane implements EventListener
                                 if (empty || item == null)
                                         return;
 
-                                setText(item.getName());
+                                setText(item.getLabel());
                                 setGraphic(Assets.use("database1"));
                         }
                 });
@@ -408,7 +403,7 @@ public class ScriptEditor extends SplitPane implements EventListener
                         @Override
                         public String toString(UICatalogNode catalog)
                         {
-                                return catalog == null ? null : catalog.getName();
+                                return catalog == null ? null : catalog.getLabel();
                         }
 
                         @Override
@@ -485,7 +480,7 @@ public class ScriptEditor extends SplitPane implements EventListener
                                         Session session = catalog.getSession();
                                         SQL sql = new SQL(finalScriptText);
 
-                                        DataGrid grid = driver.execute(currentTaskId, session, sql);
+                                        QueryResult grid = driver.execute(currentTaskId, session, sql);
 
                                         if (grid != null) {
                                                 Platform.runLater(() -> {
@@ -580,7 +575,7 @@ public class ScriptEditor extends SplitPane implements EventListener
 
                 String tail = catalog == null
                         ? ""
-                        : "@" + catalog.getName();
+                        : "@" + catalog.getLabel();
 
                 owner.setText(name + tail);
         }
@@ -610,8 +605,8 @@ public class ScriptEditor extends SplitPane implements EventListener
                                 .getSelectedItem();
 
                         ScriptFile newScriptFile = ScriptFileRepository.save(
-                                connection.getName(),
-                                catalog.getName(),
+                                connection.getLabel(),
+                                catalog.getLabel(),
                                 null,
                                 saveScriptName,
                                 content);
@@ -621,7 +616,7 @@ public class ScriptEditor extends SplitPane implements EventListener
                         ScriptFileRepository.save(scriptFile, content);
                 }
 
-                EventBus.publish(new RefreshQueryNodeEvent());
+                EventBus.publish(new RefreshQueryNodeEvent(null));
                 markSaveFlag();
         }
 

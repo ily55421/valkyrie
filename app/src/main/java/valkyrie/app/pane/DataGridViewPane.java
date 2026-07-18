@@ -22,8 +22,8 @@ import valkyrie.app.widgets.table.VkTableView;
 import valkyrie.app.widgets.table.cell.VkTextFieldTableCell;
 import valkyrie.app.workbench.ModifyCell;
 import valkyrie.driver.api.Column;
-import valkyrie.driver.api.DataGrid;
 import valkyrie.driver.api.GridRow;
+import valkyrie.driver.api.QueryResult;
 import valkyrie.utils.collection.Lists;
 import valkyrie.utils.io.UFile;
 import valkyrie.utils.poi.WorkBook;
@@ -57,7 +57,7 @@ public class DataGridViewPane extends BorderPane
 
         private final Node progressIndicator = Assets.newProgressIndicator();
 
-        private DataGrid grid;
+        private QueryResult grid;
 
         public interface ReloadProgressListener {
                 void start();
@@ -255,7 +255,7 @@ public class DataGridViewPane extends BorderPane
                 fileChooser.setInitialFileName(initName);
 
                 // 打开对话框
-                File saveDirectory = fileChooser.showSaveDialog(Application.getPrimaryStage());
+                File saveDirectory = fileChooser.showSaveDialog(Application.primaryStage);
 
                 if (saveDirectory != null) {
                         WorkBook wb = WorkBook.create();
@@ -360,11 +360,11 @@ public class DataGridViewPane extends BorderPane
                 grid.addUpdateRow(cell.getColumnIndex(), cell.getRowIndex(), cell.getNewValue());
         }
 
-        public void render(DataGrid grid)
+        public void render(QueryResult grid)
         {
                 if (this.grid != grid) {
                         this.grid = grid;
-                        this.grid.setUpdateListener(r -> updateCheckCross());
+                        // TODO: setUpdateListener API changed
                 }
 
                 tableView.getColumns().clear();

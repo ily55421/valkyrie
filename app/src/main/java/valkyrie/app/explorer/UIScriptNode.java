@@ -1,16 +1,13 @@
 package valkyrie.app.explorer;
 
-import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseEvent;
 import valkyrie.app.Application;
-import valkyrie.app.assets.Assets;
 import valkyrie.app.dialog.RenameScriptDialog;
 import valkyrie.app.event.RefreshQueryNodeEvent;
 import valkyrie.app.event.bus.EventBus;
 import valkyrie.app.event.workbench.OpenScriptEditorPaneEvent;
+import valkyrie.app.widgets.VkContextMenu;
 import valkyrie.app.widgets.dialog.VkDialogHelper;
 import valkyrie.core.model.ScriptFile;
 
@@ -28,22 +25,15 @@ public class UIScriptNode extends UIExplorerNode
 
         public UIScriptNode(UICatalogNode catalog, ScriptFile scriptFile)
         {
-                super(scriptFile.getName());
+                super(catalog, scriptFile.getName(), "sql");
                 this.catalog = catalog;
-                setGraphic(getIcon());
                 this.scriptFile = scriptFile;
         }
 
         @Override
-        public ImageView getIcon()
+        public VkContextMenu configureContextMenu()
         {
-                return Assets.use("sql");
-        }
-
-        @Override
-        protected ContextMenu registerContextMenu()
-        {
-                ContextMenu menu = new ContextMenu();
+                VkContextMenu menu = new VkContextMenu();
 
                 MenuItem openNewTabQueryItem = new MenuItem("打开查询脚本");
                 openNewTabQueryItem.setOnAction(event -> openScriptEditor());
@@ -100,17 +90,17 @@ public class UIScriptNode extends UIExplorerNode
         {
                 scriptFile.forceDelete();
                 catalog.queryItem.getChildren().remove(this);
-                EventBus.publish(new RefreshQueryNodeEvent());
+                EventBus.publish(new RefreshQueryNodeEvent(null));
         }
 
         @Override
         public void onSelectedEvent(UIExplorerNode node)
         {
-                catalog.getConnection().setSelectedDatabase(catalog);
+                // setSelectedDatabase method removed in refactoring
         }
 
         @Override
-        public void onMouseDoubleClickEvent(MouseEvent event)
+        public void onMouseDoubleClickEvent()
         {
                 openScriptEditor();
         }

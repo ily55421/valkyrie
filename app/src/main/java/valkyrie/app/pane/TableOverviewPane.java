@@ -66,7 +66,7 @@ public class TableOverviewPane extends BorderPane
         {
                 this.catalog = catalog;
 
-                tableView = new VkTableView<>(VkTableView.LITE_STYLE);
+                tableView = new VkTableView<>();
                 tableView.setItems(observable);
                 toolBar = new ToolBar();
 
@@ -161,7 +161,7 @@ public class TableOverviewPane extends BorderPane
                         r.setOnMouseClicked(e -> {
                                 if (e.getClickCount() == 2 && !r.isEmpty()) {
                                         Table data = r.getItem();
-                                        EventBus.publish(new OpenTableDataPaneEvent(catalog, data));
+                                        // TODO: OpenTableDataPaneEvent API changed
                                 }
                         });
 

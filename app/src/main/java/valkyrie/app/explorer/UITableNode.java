@@ -1,17 +1,11 @@
 package valkyrie.app.explorer;
 
-import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseEvent;
 import valkyrie.app.Application;
-import valkyrie.app.assets.Assets;
-import valkyrie.app.event.bus.EventBus;
-import valkyrie.app.event.workbench.OpenTableDataPaneEvent;
-import valkyrie.app.event.workbench.OpenTableDesignerPaneEvent;
 import valkyrie.driver.api.Driver;
 import valkyrie.driver.api.Table;
+import valkyrie.app.widgets.VkContextMenu;
 
 /**
  * @author Luo Tiansheng
@@ -26,30 +20,16 @@ public class UITableNode extends UIExplorerNode
 
         public UITableNode(Driver driver, UICatalogNode catalog, Table table)
         {
-                super(table.getName());
-                setGraphic(getIcon());
-
+                super(catalog, table.getName(), "table");
                 this.catalog = catalog;
                 this.driver = driver;
                 this.table = table;
         }
 
         @Override
-        public ImageView getIcon()
+        public VkContextMenu configureContextMenu()
         {
-                return Assets.use("table");
-        }
-
-        @Override
-        public void onSelectedEvent(UIExplorerNode node)
-        {
-                // catalog.onSelected();
-        }
-
-        @Override
-        protected ContextMenu registerContextMenu()
-        {
-                ContextMenu contextMenu = new ContextMenu();
+                VkContextMenu contextMenu = new VkContextMenu();
 
                 MenuItem openTableItem = new MenuItem("打开表");
                 openTableItem.setOnAction(event -> openDataGridBrowserPane());
@@ -59,12 +39,12 @@ public class UITableNode extends UIExplorerNode
 
                 MenuItem copyTableNameItem = new MenuItem("复制表名");
                 copyTableNameItem.setOnAction(event -> {
-                        Application.copyToClipboard(getName());
+                        Application.copyToClipboard(getLabel());
                 });
 
                 MenuItem copyCreateTableDLLItem = new MenuItem("复制建表语句");
                 copyCreateTableDLLItem.setOnAction(event -> {
-                        Application.copyToClipboard(driver.showCreateTable(catalog.getSession(), getName()));
+                        Application.copyToClipboard(driver.showCreateTable(catalog.getSession(), getLabel()));
                 });
 
                 MenuItem refreshTableItem = new MenuItem("刷新列表");
@@ -84,23 +64,18 @@ public class UITableNode extends UIExplorerNode
         }
 
         @Override
-        public void onMouseDoubleClickEvent(MouseEvent event)
+        public void onMouseDoubleClickEvent()
         {
                 openDataGridBrowserPane();
         }
 
         public void openDataGridBrowserPane()
         {
-                EventBus.publish(new OpenTableDataPaneEvent(catalog, table));
+                // TODO: OpenTableDataPaneEvent API changed
         }
 
         public void openTableDesignerPane()
         {
-                EventBus.publish(new OpenTableDesignerPaneEvent(
-                        this,
-                        catalog.getConnection().getName(),
-                        catalog.getSession(),
-                        driver,
-                        table));
+                // TODO: OpenTableDesignerPaneEvent API changed
         }
 }

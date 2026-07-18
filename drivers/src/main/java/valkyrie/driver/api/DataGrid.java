@@ -129,10 +129,10 @@ public class DataGrid
         {
                 if (driver != null && session != null && sql != null) {
 
-                        DataGrid dataGrid = driver.execute(session, sql);
+                        QueryResult queryResult = driver.execute(session, sql);
 
-                        columns = dataGrid.columns;
-                        rows = dataGrid.rows;
+                        columns = queryResult.getColumns();
+                        rows = queryResult.getRows();
 
                         clearUpdateBuffer();
 

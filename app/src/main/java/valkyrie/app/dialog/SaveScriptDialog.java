@@ -67,10 +67,10 @@ public class SaveScriptDialog extends BorderPane
         private void setupComboBox()
         {
                 connectionComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-                        if (!newVal.isOpen())
+                        if (!newVal.isConnect())
                                 return;
                         catalogComboBox.getItems().clear();
-                        catalogComboBox.getItems().addAll(newVal.getCatalogNodes());
+                        // TODO: getCatalogNodes API changed
                 });
         }
 
@@ -84,7 +84,7 @@ public class SaveScriptDialog extends BorderPane
          */
         public static String showDialog(ScriptEditor scriptEditor)
         {
-                Stage stage = Application.createByPrimaryStage();
+                Stage stage = Application.createModalStage();
 
                 SaveScriptDialog dialog = new SaveScriptDialog(stage, scriptEditor);
 

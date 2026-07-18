@@ -40,7 +40,7 @@ public class OpenScriptEditorPaneEvent extends OpenTabEvent
         public String tabId()
         {
                 if (scriptFile != null)
-                        return fmt("%s@%s(%s)", scriptFile.getName(), catalog.getName(), connection.getName());
+                        return fmt("%s@%s(%s)", scriptFile.getName(), catalog.getLabel(), connection.getLabel());
                 return null;
         }
 

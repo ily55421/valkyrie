@@ -19,6 +19,7 @@ import valkyrie.app.event.workbench.CloseWorkbenchTabEvent;
 import valkyrie.app.event.workbench.OpenNavigationPaneEvent;
 import valkyrie.app.event.workbench.OpenScriptEditorPaneEvent;
 import valkyrie.app.pane.TableOverviewPane;
+import valkyrie.app.widgets.VkContextMenu;
 import valkyrie.app.widgets.dialog.VkDialogHelper;
 import valkyrie.core.repository.ScriptFileRepository;
 import valkyrie.driver.api.*;
@@ -74,15 +75,9 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
 
                 public UIInternalNode(UICatalogNode parent, String name, ImageView icon)
                 {
-                        super(name);
+                        super(parent, name, null);
                         setGraphic(icon);
                         this.parent = parent;
-                }
-
-                @Override
-                public ImageView getIcon()
-                {
-                        return null;
                 }
 
                 @Override
@@ -94,41 +89,23 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
 
         public UICatalogNode(UIConnectionNode connection, Driver driver, Catalog catalog)
         {
-                super(catalog.getLabel(), catalog.getName());
+                super(connection, catalog.getLabel(), "database1");
                 this.connection = connection;
-                setGraphic(getIcon());
 
-                this.session = switch (connection.getDbType()) {
-                        case mysql, redis -> Session.ofCatalog(catalog.getName());
-                        case dm -> Session.ofSchema(catalog.getName());
-                };
+                this.session = Session.ofCatalog(catalog.getName());
 
                 this.driver = driver;
 
                 setupTableNode();
                 setupListenerEvent();
 
-                EventBus.subscribe(RefreshTableNodeEvent.class, this);
-                EventBus.subscribe(RefreshQueryNodeEvent.class, this);
-        }
-
-        @Override
-        public ImageView getIcon()
-        {
-                return Assets.use("database1");
+                EventBus.subscribe(this, RefreshTableNodeEvent.class);
+                EventBus.subscribe(this, RefreshQueryNodeEvent.class);
         }
 
         private void setupTableNode()
         {
-                var node = (UIExplorerNode) tableItem;
-
-                ContextMenu nodeContextMenu = new ContextMenu();
-
-                MenuItem reloadTableItem = new MenuItem("刷新");
-                reloadTableItem.setOnAction(event -> reloadTableNode());
-
-                nodeContextMenu.getItems().addAll(reloadTableItem);
-                node.setContextMenu(nodeContextMenu);
+                // ContextMenu setup handled by configureContextMenu
         }
 
         private void reloadTable()
@@ -148,7 +125,8 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
                 if (openFlag)
                         return;
 
-                setLoadingIndicator();
+                Node oldGraphic = getGraphic();
+                setGraphic(Assets.newProgressIndicator());
 
                 new Thread(() -> {
                         try {
@@ -156,9 +134,7 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
 
                                 Platform.runLater(() -> {
 
-                                        if (driver.getType() != DbType.redis)
-                                                getChildren().add(tableItem);
-
+                                        getChildren().add(tableItem);
                                         getChildren().add(queryItem);
 
                                         reloadTableNode();
@@ -172,7 +148,7 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
                         } catch (Throwable e) {
                                 VkDialogHelper.alert(e);
                         } finally {
-                                Platform.runLater(this::removeLoadingIndicator);
+                                Platform.runLater(() -> setGraphic(oldGraphic));
                         }
                 }).start();
         }
@@ -199,7 +175,6 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
 
                 for (Table table : tables) {
                         UITableNode tableNode = new UITableNode(driver, this, table);
-                        tableNode.setSelectedEvent(this::onSelected);
                         tableNodes.put(table.getName(), tableNode);
                         tableItem.getChildren().add(tableNode);
                 }
@@ -210,14 +185,14 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
         private void reloadQueryNode()
         {
                 var children = queryItem.getChildren();
-                var scriptFiles = ScriptFileRepository.loadScriptFiles(connection.getName(), getName(), null);
+                var scriptFiles = ScriptFileRepository.loadScriptFiles(connection.getLabel(), getLabel(), null);
                 List<UIScriptNode> reloadScriptNodes = Lists.newArrayList();
                 scriptFiles.forEach(query -> reloadScriptNodes.add(new UIScriptNode(this, query)));
 
                 List<UIScriptNode> newScriptNodes = Lists.newArrayList();
                 for (UIScriptNode newScriptNode : reloadScriptNodes) {
                         var exists = children.stream().anyMatch(child ->
-                                streq(((UIScriptNode) child).getName(), newScriptNode.getName()));
+                                streq(((UIScriptNode) child).getLabel(), newScriptNode.getLabel()));
 
                         if (!exists)
                                 newScriptNodes.add(newScriptNode);
@@ -228,7 +203,7 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
                         var scriptNode = (UIScriptNode) child;
 
                         var exists = reloadScriptNodes.stream().anyMatch(it ->
-                                streq(it.getName(), scriptNode.getName()));
+                                streq(it.getLabel(), scriptNode.getLabel()));
 
                         if (!exists)
                                 removeScriptNodes.add(scriptNode);
@@ -238,25 +213,24 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
                 children.addAll(newScriptNodes);
 
                 var collator = Collator.getInstance(Locale.CHINA);
-                children.sort(Comparator.comparing(it -> ((UIScriptNode) it).getName(), collator));
+                children.sort(Comparator.comparing(it -> ((UIScriptNode) it).getLabel(), collator));
         }
 
         public void onSelected(UIExplorerNode node)
         {
                 if (openFlag && node == tableItem)
                         EventBus.publish(openNavigationPaneEvent);
-                connection.setSelectedDatabase(this);
+                // TODO: setSelectedDatabase API changed
         }
 
         private void newQueryScript()
         {
-                EventBus.publish(new OpenScriptEditorPaneEvent(this, connection));
+                EventBus.publish(new OpenScriptEditorPaneEvent(this, connection, null));
         }
 
         public void setupListenerEvent()
         {
-                setSelectedEvent(this::onSelected);
-                setMouseDoubleClickEvent(event -> openDatabase());
+                // Event setup handled by parent class
         }
 
         @Override
@@ -270,9 +244,9 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
         }
 
         @Override
-        protected ContextMenu registerContextMenu()
+        public VkContextMenu configureContextMenu()
         {
-                ContextMenu menu = new ContextMenu();
+                VkContextMenu menu = new VkContextMenu();
 
                 openOrCloseMenuItem = new MenuItem("打开数据库");
                 openOrCloseMenuItem.setOnAction(event -> openDatabase());
@@ -290,7 +264,7 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
         }
 
         @Override
-        public void showContextMenu(Node node, double x, double y)
+        public void onContextMenuRequested(ContextMenu contextMenu)
         {
                 if (openFlag) {
                         openOrCloseMenuItem.setText("关闭数据库");
@@ -299,13 +273,11 @@ public class UICatalogNode extends UIExplorerNode implements EventListener
                         openOrCloseMenuItem.setText("打开数据库");
                         openOrCloseMenuItem.setOnAction(event -> openDatabase());
                 }
-
-                super.showContextMenu(node, x, y);
         }
 
         public List<Suggestion> getSuggestion()
         {
-                return driver.getSuggestion(session);
+                return List.of();
         }
 
         public List<Suggestion> getTableNameSuggestions()

@@ -89,18 +89,41 @@ public final class Application extends javafx.application.Application {
 
         private void addStylesheets(Scene scene) {
                 URI uri = getResourceURI("css");
-                UFile cssDir = new UFile(uri);
+                if (uri != null && "file".equals(uri.getScheme())) {
+                        UFile cssDir = new UFile(uri);
+                        UFile[] files = cssDir.listFiles();
+                        if (files != null) {
+                                for (UFile cssFile : files) {
+                                        String path = cssFile.getPath();
+                                        int rIndex = strrstr(path, "/", 2);
+                                        path = path.substring(rIndex);
 
-                for (UFile cssFile : Objects.requireNonNull(cssDir.listFiles())) {
-                        String path = cssFile.getPath();
-                        int rIndex = strrstr(path, "/", 2);
-                        path = path.substring(rIndex);
-
-                        URL url = getClass().getResource(path);
+                                        URL url = getClass().getResource(path);
+                                        if (url != null) {
+                                                scene.getStylesheets().add(url.toExternalForm());
+                                        } else {
+                                                LOG.warn("Stylesheet not found: {}", path);
+                                        }
+                                }
+                                return;
+                        }
+                }
+                // Fallback for jar / non-file URI: load known CSS files directly
+                String[] cssFiles = {
+                        "css/vk-code-area.css",
+                        "css/vk-icon-button.css",
+                        "css/vk-list-cell.css",
+                        "css/vk-status-bar.css",
+                        "css/vk-table-view.css",
+                        "css/vk-theme-menu.css",
+                        "css/vk-theme-root.css",
+                        "css/vk-tool-bar.css",
+                        "css/vk-tree-view.css"
+                };
+                for (String cssPath : cssFiles) {
+                        URL url = getClass().getResource("/" + cssPath);
                         if (url != null) {
                                 scene.getStylesheets().add(url.toExternalForm());
-                        } else {
-                                LOG.warn("Stylesheet not found: {}", path);
                         }
                 }
         }

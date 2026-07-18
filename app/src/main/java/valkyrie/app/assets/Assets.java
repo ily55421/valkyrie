@@ -46,8 +46,20 @@ public class Assets
                 double size = parseScale(scale);
 
                 Image image = originImages.get(split[0]);
-                Image scaledImage = new Image(image.getUrl(), size, size, true, true);
-                imageView.setImage(scaledImage);
+                if (image == null) {
+                        // On-demand loading for jar / non-file URI environments
+                        String resourcePath = "/assets/icons/" + split[0] + ".png";
+                        var url = Assets.class.getResource(resourcePath);
+                        if (url != null) {
+                                image = new Image(url.toExternalForm());
+                                originImages.put(split[0], image);
+                        }
+                }
+
+                if (image != null) {
+                        Image scaledImage = new Image(image.getUrl(), size, size, true, true);
+                        imageView.setImage(scaledImage);
+                }
 
                 return imageView;
         }
@@ -74,8 +86,15 @@ public class Assets
 
         private static void loadImages()
         {
-                Captor.call(() -> {
+                // In development (IDE/exploded classes), we can walk the directory.
+                // In a packaged jar, URI is not hierarchical and listFiles() fails;
+                // icons are loaded on-demand via use() instead.
+                Captor.icall(() -> {
                         URI uri = Application.getResourceURI("assets/icons");
+                        if (uri == null) return;
+
+                        String scheme = uri.getScheme();
+                        if (!"file".equals(scheme)) return;
 
                         UFile iconsDir = new UFile(uri);
                         UFile[] files = iconsDir.listFiles();

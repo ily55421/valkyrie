@@ -60,7 +60,7 @@ public class RenameScriptDialog extends BorderPane
 
                 scriptFile = newScriptFile;
 
-                EventBus.publish(new RefreshQueryNodeEvent());
+                EventBus.publish(new RefreshQueryNodeEvent(null));
 
                 cancel();
         }
@@ -72,7 +72,7 @@ public class RenameScriptDialog extends BorderPane
 
         public static void showDialog(ScriptFile scriptFile)
         {
-                Stage stage = Application.createByPrimaryStage();
+                Stage stage = Application.createModalStage();
 
                 RenameScriptDialog dialog = new RenameScriptDialog(stage, scriptFile);
 
