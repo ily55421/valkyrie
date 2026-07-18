@@ -3,15 +3,36 @@
  */
 .tree-view {
     -fx-padding: 0;
+    -fx-background-color: -vk-surface;
 }
 
 .tree-cell {
     -fx-padding: 6 4;
     -fx-background-color: transparent;
+    -fx-text-fill: -vk-text;
+}
+
+.tree-cell:hover {
+    -fx-background-color: -vk-hover;
+    -fx-background-radius: 6;
+    -fx-background-insets: 2 6;
 }
 
 .tree-cell:filled:selected {
-    -fx-background-color: #C9E2FF;
-    -fx-background-radius: 8;
+    -fx-background-color: -vk-selected;
+    -fx-background-radius: 6;
     -fx-background-insets: 2 6;
+    -fx-text-fill: -vk-text;
+}
+
+/* Environment color bars */
+.env-production { -fx-background-color: -vk-env-production; }
+.env-test       { -fx-background-color: -vk-env-test; }
+.env-dev        { -fx-background-color: -vk-env-dev; }
+.env-local      { -fx-background-color: -vk-env-local; }
+
+/* Node count badge */
+.node-count-badge {
+    -fx-text-fill: -vk-text-secondary;
+    -fx-font-size: 11px;
 }

@@ -1,9 +1,9 @@
 .context-menu {
-    -fx-background-color: rgb(252, 252, 253);
+    -fx-background-color: -vk-surface;
     -fx-background-radius: 12;
     -fx-border-radius: 12;
     -fx-border-width: 1;
-    -fx-border-color: rgb(225, 227, 230);
+    -fx-border-color: -vk-border;
     -fx-padding: 5 0;
 }
 
@@ -13,11 +13,11 @@
     -fx-background-radius: 8;
     -fx-background-insets: 2 6;
     -fx-font-size: 13.5;
-    -fx-text-fill: #1c1c1e;
+    -fx-text-fill: -vk-text;
 }
 
 .menu-item:hover, .menu-item:focused {
-    -fx-background-color: #007aff;
+    -fx-background-color: -vk-primary;
 }
 
 .menu-item:hover .label, .menu-item:focused .label {
@@ -25,7 +25,7 @@
 }
 
 .menu-item .accelerator-text {
-    -fx-text-fill: #7c7c82;
+    -fx-text-fill: -vk-text-secondary;
 }
 
 .menu-item:hover .accelerator-text {
@@ -33,7 +33,7 @@
 }
 
 .separator .line {
-    -fx-border-color: #d4d4d8;
+    -fx-border-color: -vk-border;
     -fx-border-width: 0.5;
     -fx-border-insets: 0 10;
 }

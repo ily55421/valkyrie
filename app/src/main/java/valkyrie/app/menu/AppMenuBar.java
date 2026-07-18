@@ -3,8 +3,12 @@ package valkyrie.app.menu;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.RadioMenuItem;
 import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.ToggleGroup;
 import valkyrie.app.Publisher;
+import valkyrie.app.sync.SyncWizardDialog;
+import valkyrie.app.theme.ThemeManager;
 import valkyrie.utils.system.OS;
 
 /**
@@ -53,6 +57,29 @@ public class AppMenuBar extends MenuBar
                 // 运行菜单
                 Menu runMenu = new Menu("运行");
 
+                // 视图菜单
+                Menu viewMenu = new Menu("视图");
+                Menu themeMenu = new Menu("主题");
+                ToggleGroup themeGroup = new ToggleGroup();
+
+                RadioMenuItem lightTheme = new RadioMenuItem("亮色");
+                lightTheme.setToggleGroup(themeGroup);
+                lightTheme.setSelected(true);
+                lightTheme.setOnAction(e -> ThemeManager.switchTheme(ThemeManager.Theme.LIGHT));
+
+                RadioMenuItem darkTheme = new RadioMenuItem("暗色");
+                darkTheme.setToggleGroup(themeGroup);
+                darkTheme.setOnAction(e -> ThemeManager.switchTheme(ThemeManager.Theme.DARK));
+
+                themeMenu.getItems().addAll(lightTheme, darkTheme);
+                viewMenu.getItems().add(themeMenu);
+
+                // 工具菜单
+                Menu toolsMenu = new Menu("工具");
+                MenuItem syncItem = new MenuItem("跨库同步");
+                syncItem.setOnAction(e -> new SyncWizardDialog().show());
+                toolsMenu.getItems().add(syncItem);
+
                 // 帮助菜单
                 Menu helpMenu = new Menu("帮助");
                 MenuItem aboutItem = new MenuItem("关于");
@@ -63,6 +90,8 @@ public class AppMenuBar extends MenuBar
                         editMenu,
                         codeMenu,
                         runMenu,
+                        viewMenu,
+                        toolsMenu,
                         helpMenu
                 );
         }

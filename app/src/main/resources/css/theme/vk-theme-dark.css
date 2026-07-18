@@ -1,0 +1,22 @@
+/* Valkyrie Dark Theme */
+.root {
+    -vk-primary: #60A5FA;
+    -vk-success: #4ADE80;
+    -vk-warning: #FBBF24;
+    -vk-danger:  #F87171;
+    -vk-bg:      #0F172A;
+    -vk-bg-alt:  #1E293B;
+    -vk-surface: #1E293B;
+    -vk-border:  #334155;
+    -vk-text:    #F1F5F9;
+    -vk-text-secondary: #94A3B8;
+    -vk-hover:   rgba(96, 165, 250, 0.12);
+    -vk-selected: rgba(96, 165, 250, 0.22);
+    -vk-radius:  8px;
+    -vk-spacing: 8px;
+    /* 环境标签色 */
+    -vk-env-production: #4ADE80;
+    -vk-env-test:       #FBBF24;
+    -vk-env-dev:        #60A5FA;
+    -vk-env-local:      #64748B;
+}

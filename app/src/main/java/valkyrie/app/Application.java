@@ -11,6 +11,7 @@ import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import valkyrie.app.layout.MainLayout;
+import valkyrie.app.theme.ThemeManager;
 import valkyrie.utils.Optional;
 import valkyrie.utils.io.UFile;
 import valkyrie.utils.system.OS;
@@ -80,6 +81,7 @@ public final class Application extends javafx.application.Application {
                 setUserAgentStylesheet(new CupertinoLight().getUserAgentStylesheet());
                 Scene scene = new Scene(new MainLayout(), 1200, 800);
                 addStylesheets(scene);
+                ThemeManager.init(scene);
                 stage.setTitle(TITLE);
                 stage.setScene(scene);
                 stage.setMaximized(true);
@@ -94,6 +96,9 @@ public final class Application extends javafx.application.Application {
                         UFile[] files = cssDir.listFiles();
                         if (files != null) {
                                 for (UFile cssFile : files) {
+                                        // Skip directories (e.g., css/theme/ managed by ThemeManager)
+                                        if (cssFile.isDirectory())
+                                                continue;
                                         String path = cssFile.getPath();
                                         int rIndex = strrstr(path, "/", 2);
                                         path = path.substring(rIndex);

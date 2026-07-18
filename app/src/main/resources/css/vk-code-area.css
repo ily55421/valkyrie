@@ -1,19 +1,18 @@
 .vk-code-area {
     -fx-font-family: "Monaco", "Menlo", "Consolas", "Courier New";
-    -fx-font-size: 24px;
+    -fx-font-size: 14px;
 }
 
 .vk-code-area .selection {
-    -fx-fill: #5eacff;
-    -fx-fill: rgba(125, 190, 255, 0.5);
+    -fx-fill: rgba(59, 130, 246, 0.3);
 }
 
 .vk-code-area .keyword {
-    -fx-fill: #0066cc;
+    -fx-fill: -vk-primary;
 }
 
 .vk-code-area .string {
-    -fx-fill: #09902c;
+    -fx-fill: -vk-success;
 }
 
 .vk-code-area .number {
@@ -21,18 +20,18 @@
 }
 
 .vk-code-area .comment {
-    -fx-fill: #909090;
+    -fx-fill: -vk-text-secondary;
     -fx-font-style: italic;
 }
 
 .vk-code-area .info {
-    -fx-fill: #17af12;
+    -fx-fill: -vk-success;
 }
 
 .vk-code-area .fail {
-    -fx-fill: #ff0b0b;
+    -fx-fill: -vk-danger;
 }
 
 .vk-code-area .skip {
-    -fx-fill: #bd9f28;
+    -fx-fill: -vk-warning;
 }

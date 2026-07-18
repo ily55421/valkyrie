@@ -5,6 +5,9 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
 import lombok.Getter;
 import lombok.Setter;
 import valkyrie.app.dialog.connection.CreateOrEditConnectionDialog;
@@ -13,14 +16,17 @@ import valkyrie.app.event.bus.EventBus;
 import valkyrie.app.model.ConnectionPropertyModel;
 import valkyrie.app.widgets.VkContextMenu;
 import valkyrie.app.widgets.dialog.VkDialogHelper;
+import valkyrie.core.model.EnvTag;
 import valkyrie.core.repository.ConnectionRepository;
 import valkyrie.driver.api.ConnectionConfig;
+import valkyrie.driver.api.DbType;
 import valkyrie.driver.api.Driver;
 import valkyrie.driver.api.DriverFactory;
 import valkyrie.driver.api.node.DBNode;
 import valkyrie.utils.io.IOUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Explorer Node 体系下的 Root 节点
@@ -46,10 +52,43 @@ public class UIConnectionNode extends UIExplorerNode
 
         public UIConnectionNode(TreeView<String> treeView, ConnectionPropertyModel propertyModel)
         {
-                super(null, propertyModel.getName(), propertyModel.getDbType().getIcon());
+                super(null, propertyModel.getName(), null);
                 this.treeView = treeView;
                 this.propertyModel = propertyModel;
                 GlobalDynamicNodeContext.getConnectionNodes().add(this);
+
+                // Build custom graphic: [env color bar] [db type icon] [name]
+                setGraphic(buildConnectionGraphic(propertyModel.getDbType(),
+                        EnvTag.of(propertyModel.getEnvTag())));
+        }
+
+        private HBox buildConnectionGraphic(DbType dbType, EnvTag envTag)
+        {
+                HBox box = new HBox(6);
+
+                // Environment color bar (3x16)
+                Region colorBar = new Region();
+                colorBar.setPrefWidth(3);
+                colorBar.setMinWidth(3);
+                colorBar.setMaxWidth(3);
+                colorBar.setPrefHeight(16);
+                colorBar.getStyleClass().add(envTag.cssClass());
+
+                // Database type icon
+                String iconPath = "/assets/icons/" + dbType.getIcon() + ".png";
+                var iconUrl = getClass().getResource(iconPath);
+                ImageView dbIcon = new ImageView();
+                if (iconUrl != null) {
+                        dbIcon = new ImageView(new javafx.scene.image.Image(iconUrl.toExternalForm()));
+                        dbIcon.setFitWidth(16);
+                        dbIcon.setFitHeight(16);
+                }
+
+                // Connection name label
+                javafx.scene.control.Label nameLabel = new javafx.scene.control.Label(getLabel());
+
+                box.getChildren().addAll(colorBar, dbIcon, nameLabel);
+                return box;
         }
 
         @Override

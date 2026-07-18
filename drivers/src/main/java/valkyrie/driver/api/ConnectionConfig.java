@@ -20,4 +20,6 @@ public class ConnectionConfig
         private String password;
         private String defaultDatabase;
         private String jdbcUrl;
+        private String path;
+        private String timezone;
 }

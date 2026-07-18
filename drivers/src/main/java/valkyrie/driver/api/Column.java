@@ -69,6 +69,16 @@ public class Column extends Sealable
         private String type;
 
         /**
+         * 列长度/精度（VARCHAR 长度、DECIMAL 精度等）
+         */
+        private Integer size;
+
+        /**
+         * 小数位数（DECIMAL/NUMERIC 的标度）
+         */
+        private Integer decimalDigits;
+
+        /**
          * 列是否不允许存储 {@code NULL} 值。
          * <p>
          * {@code true} 表示列可为空，{@code false} 表示列具有 {@code NOT NULL} 约束。
@@ -153,6 +163,8 @@ public class Column extends Sealable
                 return Codec.toByteHex((strip(name) +
                         strip(index) +
                         strip(type) +
+                        strip(size) +
+                        strip(decimalDigits) +
                         strip(notNull) +
                         strip(primary) +
                         strip(autoIncrement) +

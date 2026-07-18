@@ -24,4 +24,5 @@ public class DiskSavedConnection
         private String timezone;
         private Boolean useSSL = Boolean.FALSE;
         private Boolean tinyint1isBit = Boolean.FALSE;
+        private String envTag;
 }

@@ -5,6 +5,9 @@ import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.event.Event;
 import javafx.event.EventHandler;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 
@@ -22,6 +25,75 @@ public class VkTabPane extends TabPane implements ObservableList<Tab>
         public VkTabPane()
         {
                 setTabDragPolicy(TabDragPolicy.REORDER);
+                setupTabContextMenu();
+        }
+
+        private void setupTabContextMenu()
+        {
+                // Add context menu to each tab when added
+                getTabs().addListener((ListChangeListener<Tab>) c -> {
+                        while (c.next()) {
+                                if (c.wasAdded()) {
+                                        for (Tab tab : c.getAddedSubList()) {
+                                                tab.setContextMenu(createTabContextMenu(tab));
+                                        }
+                                }
+                        }
+                });
+        }
+
+        private ContextMenu createTabContextMenu(Tab tab)
+        {
+                ContextMenu menu = new ContextMenu();
+
+                MenuItem closeOthers = new MenuItem("关闭其它");
+                closeOthers.setOnAction(e -> {
+                        int idx = getTabs().indexOf(tab);
+                        // Close tabs to the right
+                        removeExcept(tab, idx + 1, getTabs().size());
+                        // Close tabs to the left
+                        removeExcept(tab, 0, idx);
+                });
+
+                MenuItem closeLeft = new MenuItem("关闭左侧");
+                closeLeft.setOnAction(e -> {
+                        int idx = getTabs().indexOf(tab);
+                        removeExcept(tab, 0, idx);
+                });
+
+                MenuItem closeRight = new MenuItem("关闭右侧");
+                closeRight.setOnAction(e -> {
+                        int idx = getTabs().indexOf(tab);
+                        removeExcept(tab, idx + 1, getTabs().size());
+                });
+
+                MenuItem closeAll = new MenuItem("关闭全部");
+                closeAll.setOnAction(e -> getTabs().clear());
+
+                MenuItem copyTab = new MenuItem("复制 Tab");
+                copyTab.setOnAction(e -> {
+                        // Copy tab: select current tab (content-specific copy handled by tab content)
+                        getSelectionModel().select(tab);
+                });
+
+                SeparatorMenuItem sep = new SeparatorMenuItem();
+
+                // Pin/unpin
+                MenuItem pinTab = new MenuItem(tab.isClosable() ? "固定 Tab" : "取消固定");
+                pinTab.setOnAction(e -> {
+                        boolean pinned = !tab.isClosable();
+                        tab.setClosable(pinned);
+                        pinTab.setText(pinned ? "固定 Tab" : "取消固定");
+                        if (!pinned) {
+                                // Move pinned tab to front
+                                getTabs().remove(tab);
+                                getTabs().add(0, tab);
+                                getSelectionModel().select(tab);
+                        }
+                });
+
+                menu.getItems().addAll(closeOthers, closeLeft, closeRight, closeAll, sep, pinTab);
+                return menu;
         }
 
         /// ///////////////////////////////////////////////////////////

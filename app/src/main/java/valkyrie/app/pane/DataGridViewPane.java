@@ -18,6 +18,7 @@ import valkyrie.app.assets.Assets;
 import valkyrie.app.widgets.VkIconButton;
 import valkyrie.app.widgets.VkSeparator;
 import valkyrie.app.widgets.dialog.VkDialogHelper;
+import valkyrie.app.widgets.table.VkColumnHeader;
 import valkyrie.app.widgets.table.VkTableView;
 import valkyrie.app.widgets.table.cell.VkTextFieldTableCell;
 import valkyrie.app.workbench.ModifyCell;
@@ -381,21 +382,12 @@ public class DataGridViewPane extends BorderPane
                         int index = i;
 
                         Column columnMetaData = grid.getColumns().get(i);
-                        StringBuilder labelBuilder = new StringBuilder(columnMetaData.getLabel());
 
-                        labelBuilder.append("\n# ")
-                                .append(columnMetaData.getType());
-
-                        if (columnMetaData.isPrimary())
-                                labelBuilder.append(" ").append("PK");
-
-                        String label = labelBuilder.toString();
-
-                        TableColumn<GridRow, String> col =
-                                new TableColumn<>(label);
+                        TableColumn<GridRow, String> col = new TableColumn<>();
+                        col.setGraphic(new VkColumnHeader(columnMetaData));
 
                         col.setEditable(true);
-                        col.setPrefWidth(calcColWidth(label, grid.getRows(), i));
+                        col.setPrefWidth(calcColWidth(columnMetaData.getLabel(), grid.getRows(), i));
                         col.setMaxWidth(1000);
                         col.setCellValueFactory(param -> new SimpleStringProperty(param.getValue().get(index)));
 

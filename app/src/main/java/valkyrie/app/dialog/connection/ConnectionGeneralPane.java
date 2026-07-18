@@ -1,11 +1,13 @@
 package valkyrie.app.dialog.connection;
 
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import valkyrie.app.model.ConnectionPropertyModel;
 import valkyrie.app.pane.PropertyGridPane;
+import valkyrie.core.model.EnvTag;
 import valkyrie.driver.api.DbType;
 
 import static valkyrie.utils.string.StrStaticImports.strhas;
@@ -26,6 +28,7 @@ class ConnectionGeneralPane extends PropertyGridPane
         private final TextField sqlitePath = new TextField();
         private final PasswordField password = new PasswordField();
         private final CheckBox savePassword = new CheckBox("保存密码");
+        private final ComboBox<String> envSelector = new ComboBox<>();
 
         public ConnectionGeneralPane(ConnectionPropertyModel info)
         {
@@ -53,11 +56,20 @@ class ConnectionGeneralPane extends PropertyGridPane
                 username.textProperty().bindBidirectional(info.usernameProperty());
                 sqlitePath.textProperty().bindBidirectional(info.sqlitePathProperty());
                 savePassword.selectedProperty().bindBidirectional(info.savePasswordProperty());
+
+                // Environment selector
+                envSelector.getItems().addAll("生产", "测试", "开发", "本地");
+                envSelector.getSelectionModel().select(EnvTag.of(info.getEnvTag()).ordinal());
+                envSelector.getSelectionModel().selectedIndexProperty().addListener((obs, old, idx) -> {
+                        String[] tags = {"PRODUCTION", "TEST", "DEV", "LOCAL"};
+                        info.setEnvTag(tags[idx.intValue()]);
+                });
         }
 
         private void setupPaneLayout()
         {
                 addRow("连接名称", name);
+                addRow("环境", envSelector);
                 addRow(null, new Label()); /* separator */
 
                 if (info.getDbType() != DbType.sqlite) {

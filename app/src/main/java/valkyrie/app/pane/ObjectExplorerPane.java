@@ -45,7 +45,7 @@ public class ObjectExplorerPane extends VBox implements EventListener
 
         private final TreeItem<String> root = new TreeItem<>("我的连接", Assets.use("chain"));
         private final VkTextField search = new VkTextField();
-        private final PauseTransition searchDelay = new PauseTransition(Duration.millis(100));
+        private final PauseTransition searchDelay = new PauseTransition(Duration.millis(300));
         private final Map<String, UIConnectionNode> connections = new HashMap<>();
 
         public ObjectExplorerPane()

@@ -1,11 +1,37 @@
-/*
+.tool-bar {
+    -fx-background-color: -vk-surface;
+    -fx-border-color: transparent transparent -vk-border transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 4 8;
+}
+
 .tool-bar .vk-tool-separator {
     -fx-padding: 0;
     -fx-min-width: 4;
     -fx-pref-width: 12;
+    -fx-opacity: 0.3;
 }
 
+.tool-bar .button,
+.tool-bar .vk-icon-button,
 .tool-bar .vk-tool-button {
-    -fx-padding: 4;
+    -fx-background-color: transparent;
+    -fx-background-radius: -vk-radius;
+    -fx-padding: 4 8;
+    -fx-text-fill: -vk-text;
+    -fx-cursor: hand;
 }
-*/
+
+.tool-bar .button:hover,
+.tool-bar .vk-icon-button:hover,
+.tool-bar .vk-tool-button:hover {
+    -fx-background-color: -vk-hover;
+    -fx-background-radius: 8px;
+}
+
+.tool-bar .button:pressed,
+.tool-bar .vk-icon-button:pressed,
+.tool-bar .vk-tool-button:pressed {
+    -fx-background-color: -vk-selected;
+    -fx-background-radius: 8px;
+}

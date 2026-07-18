@@ -1,4 +1,9 @@
 * {
     -fx-font-size: 14px;
-    -fx-font-family: "System"
+    -fx-font-family: "System";
+    -fx-text-fill: -vk-text;
+}
+
+.root {
+    -fx-background-color: -vk-bg;
 }

@@ -38,6 +38,7 @@ public class ConnectionPropertyModel
         private final StringProperty timezone = new SimpleStringProperty();
         private final BooleanProperty useSSL = new SimpleBooleanProperty(true);
         private final BooleanProperty tinyint1isBit = new SimpleBooleanProperty(false);
+        private final StringProperty envTag = new SimpleStringProperty("LOCAL");
 
         /* jdbc url 属性 */
         private final Map<String, String> jdbcQuery = new HashMap<>();
@@ -61,6 +62,7 @@ public class ConnectionPropertyModel
                 this.timezone.set(profile.getTimezone());
                 this.useSSL.set(profile.getUseSSL());
                 this.tinyint1isBit.set(profile.getTinyint1isBit());
+                this.envTag.set(profile.getEnvTag() != null ? profile.getEnvTag() : "LOCAL");
 
                 setupListener();
         }
@@ -236,6 +238,7 @@ public class ConnectionPropertyModel
         public StringProperty timezoneProperty() { return timezone; }
         public BooleanProperty useSSLProperty() { return useSSL; }
         public BooleanProperty tinyint1isBitProperty() { return tinyint1isBit; }
+        public StringProperty envTagProperty() { return envTag; }
 
         /* get */
         public String getName() { return name.get();  }
@@ -251,8 +254,9 @@ public class ConnectionPropertyModel
         public String getTimezone() { return timezone.get();  }
         public Boolean getUseSSL() { return useSSL.get();  }
         public Boolean getTinyint1isBit() { return tinyint1isBit.get();  }
+        public String getEnvTag() { return envTag.get(); }
 
-        /* get */
+        /* set */
         public void setName(String name) { this.name.set(name);  }
         public void setType(String type) { this.type.set(type);  }
         public void setSqlitePath(String path) { this.sqlitePath.set(path);  }
@@ -266,6 +270,7 @@ public class ConnectionPropertyModel
         public void setTimezone(String timezone) { this.timezone.set(timezone);  }
         public void setUseSSL(Boolean useSSL) { this.useSSL.set(useSSL);  }
         public void setTinyint1isBit(Boolean tinyint1isBit) { this.tinyint1isBit.set(tinyint1isBit);  }
+        public void setEnvTag(String envTag) { this.envTag.set(envTag); }
 
         public ConnectionConfig toConnectionConfig()
         {
