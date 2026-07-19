@@ -16,7 +16,7 @@
 .tool-bar .vk-icon-button,
 .tool-bar .vk-tool-button {
     -fx-background-color: transparent;
-    -fx-background-radius: -vk-radius;
+    -fx-background-radius: 8px;
     -fx-padding: 4 8;
     -fx-text-fill: -vk-text;
     -fx-cursor: hand;

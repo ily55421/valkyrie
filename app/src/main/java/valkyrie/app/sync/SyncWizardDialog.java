@@ -8,6 +8,7 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import valkyrie.app.Application;
 import valkyrie.app.explorer.GlobalDynamicNodeContext;
+import valkyrie.app.explorer.UICatalogNode;
 import valkyrie.app.explorer.UIConnectionNode;
 import valkyrie.driver.api.Driver;
 import valkyrie.driver.api.Session;
@@ -27,12 +28,16 @@ public class SyncWizardDialog extends Stage
         private final BorderPane root = new BorderPane();
         private final ComboBox<UIConnectionNode> sourceConn = new ComboBox<>();
         private final ComboBox<UIConnectionNode> targetConn = new ComboBox<>();
+        private final ComboBox<String> sourceDb = new ComboBox<>();
+        private final ComboBox<String> targetDb = new ComboBox<>();
         private final ListView<String> tableList = new ListView<>();
         private final TextArea logArea = new TextArea();
         private final ProgressBar progressBar = new ProgressBar(0);
         private final Label statusLabel = new Label("Ready");
 
         private SyncOptions options = new SyncOptions();
+        private Driver srcDriver, tgtDriver;
+        private Session srcSession, tgtSession;
 
         public SyncWizardDialog()
         {
@@ -55,7 +60,6 @@ public class SyncWizardDialog extends Stage
                 Label title = new Label("Step 1: 选择源和目标连接");
                 title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
-                // Populate connections
                 List<UIConnectionNode> connections = new ArrayList<>(GlobalDynamicNodeContext.getConnectionNodes());
                 sourceConn.getItems().addAll(connections);
                 targetConn.getItems().addAll(connections);
@@ -66,15 +70,9 @@ public class SyncWizardDialog extends Stage
                 });
                 targetConn.setConverter(sourceConn.getConverter());
 
-                GridPane grid = new GridPane();
-                grid.setHgap(10);
-                grid.setVgap(10);
-                grid.add(new Label("源连接:"), 0, 0);
-                grid.add(sourceConn, 1, 0);
-                grid.add(new Label("目标连接:"), 0, 1);
-                grid.add(targetConn, 1, 1);
+                sourceConn.valueProperty().addListener((obs, old, conn) -> loadDatabases(conn, sourceDb, true));
+                targetConn.valueProperty().addListener((obs, old, conn) -> loadDatabases(conn, targetDb, false));
 
-                // Options
                 CheckBox structureChk = new CheckBox("同步结构");
                 structureChk.setSelected(true);
                 CheckBox dataChk = new CheckBox("同步数据");
@@ -82,10 +80,26 @@ public class SyncWizardDialog extends Stage
 
                 HBox optionsBox = new HBox(10, structureChk, dataChk, truncateChk);
 
+                GridPane grid = new GridPane();
+                grid.setHgap(10);
+                grid.setVgap(10);
+                grid.add(new Label("源连接:"), 0, 0);
+                grid.add(sourceConn, 1, 0);
+                grid.add(new Label("源数据库:"), 0, 1);
+                grid.add(sourceDb, 1, 1);
+                grid.add(new Label("目标连接:"), 0, 2);
+                grid.add(targetConn, 1, 2);
+                grid.add(new Label("目标数据库:"), 0, 3);
+                grid.add(targetDb, 1, 3);
+
                 Button next = new Button("下一步 →");
                 next.setOnAction(e -> {
                         if (sourceConn.getValue() == null || targetConn.getValue() == null) {
                                 new Alert(Alert.AlertType.WARNING, "请选择源和目标连接").show();
+                                return;
+                        }
+                        if (sourceDb.getValue() == null || targetDb.getValue() == null) {
+                                new Alert(Alert.AlertType.WARNING, "请选择源和目标数据库").show();
                                 return;
                         }
                         options.setIncludeStructure(structureChk.isSelected());
@@ -99,6 +113,23 @@ public class SyncWizardDialog extends Stage
                 root.setCenter(box);
         }
 
+        private void loadDatabases(UIConnectionNode conn, ComboBox<String> dbCombo, boolean isSource)
+        {
+                dbCombo.getItems().clear();
+                if (conn != null) {
+                        new Thread(() -> {
+                                List<String> catalogs = valkyrie.app.utils.DbUtils.loadCatalogs(conn);
+                                // Set driver reference after connection
+                                if (isSource) srcDriver = conn.getDriver();
+                                else tgtDriver = conn.getDriver();
+                                Platform.runLater(() -> {
+                                        dbCombo.getItems().addAll(catalogs);
+                                        if (!catalogs.isEmpty()) dbCombo.setValue(catalogs.get(0));
+                                });
+                        }).start();
+                }
+        }
+
         private void buildStep2()
         {
                 VBox box = new VBox(10);
@@ -107,17 +138,19 @@ public class SyncWizardDialog extends Stage
                 Label title = new Label("Step 2: 选择要同步的表");
                 title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
-                // Load tables from source
-                UIConnectionNode src = sourceConn.getValue();
-                if (src.isConnect() && src.getDriver() != null) {
-                        try {
-                                Driver driver = src.getDriver();
-                                Session session = Session.ofCatalog("");
-                                driver.getTables(session).forEach(t ->
-                                        tableList.getItems().add(t.getName()));
-                        } catch (Exception e) {
-                                logArea.appendText("加载表失败: " + e.getMessage() + "\n");
-                        }
+                tableList.getItems().clear();
+                srcSession = Session.ofCatalog(sourceDb.getValue());
+                tgtSession = Session.ofCatalog(targetDb.getValue());
+
+                if (srcDriver != null) {
+                        new Thread(() -> {
+                                try {
+                                        srcDriver.getTables(srcSession).forEach(t ->
+                                                Platform.runLater(() -> tableList.getItems().add(t.getName())));
+                                } catch (Exception e) {
+                                        Platform.runLater(() -> logArea.appendText("加载表失败: " + e.getMessage() + "\n"));
+                                }
+                        }).start();
                 }
                 tableList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
@@ -160,7 +193,6 @@ public class SyncWizardDialog extends Stage
                 box.getChildren().addAll(title, statusBox, logArea, close);
                 root.setCenter(box);
 
-                // Run sync in background
                 new Thread(() -> {
                         SyncProgressListener listener = new SyncProgressListener() {
                                 @Override public void onTableStart(String table, long total) {
@@ -170,14 +202,10 @@ public class SyncWizardDialog extends Stage
                                         });
                                 }
                                 @Override public void onRows(String table, long done) {
-                                        Platform.runLater(() -> {
-                                                progressBar.setProgress(-1);
-                                        });
+                                        Platform.runLater(() -> progressBar.setProgress(-1));
                                 }
                                 @Override public void onTableEnd(String table, boolean success, String msg) {
-                                        Platform.runLater(() -> {
-                                                logArea.appendText((success ? "✓ " : "✗ ") + table + ": " + msg + "\n");
-                                        });
+                                        Platform.runLater(() -> logArea.appendText((success ? "✓ " : "✗ ") + table + ": " + msg + "\n"));
                                 }
                                 @Override public void onMessage(String msg) {
                                         Platform.runLater(() -> logArea.appendText(msg + "\n"));
@@ -186,22 +214,13 @@ public class SyncWizardDialog extends Stage
                         };
 
                         try {
-                                UIConnectionNode src = sourceConn.getValue();
-                                UIConnectionNode tgt = targetConn.getValue();
-                                Driver srcDriver = src.getDriver();
-                                Driver tgtDriver = tgt.getDriver();
-                                Session srcSession = Session.ofCatalog("");
-                                Session tgtSession = Session.ofCatalog("");
-
                                 if (options.isIncludeStructure()) {
                                         Platform.runLater(() -> logArea.appendText("=== Structure Sync ===\n"));
                                         var plan = StructureSyncService.plan(
                                                 srcDriver, srcSession, tables,
                                                 tgtDriver, tgtSession, options);
                                         SyncReport report = StructureSyncService.execute(plan, tgtDriver, tgtSession, listener);
-                                        Platform.runLater(() -> {
-                                                logArea.appendText("Structure sync done: " + report.getSuccessRows() + " tables\n");
-                                        });
+                                        Platform.runLater(() -> logArea.appendText("Structure sync done\n"));
                                 }
 
                                 if (options.isIncludeData()) {

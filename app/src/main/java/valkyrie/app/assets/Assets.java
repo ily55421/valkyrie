@@ -38,6 +38,7 @@ public class Assets
 
         public static ImageView use(String name)
         {
+                if (name == null) name = "sql"; // fallback icon
                 String[] split = name.split("@");
 
                 ImageView imageView = new ImageView();

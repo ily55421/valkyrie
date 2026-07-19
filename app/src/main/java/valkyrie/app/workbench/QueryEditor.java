@@ -175,6 +175,14 @@ public class QueryEditor extends SplitPane implements EventListener
                 return editor;
         }
 
+        /**
+         * 设置编辑器内容（用于打开外部文件）
+         */
+        public void setContent(String content)
+        {
+                editor.setValue(content);
+        }
+
         private void initializeMonacoEditorValue(QueryFile queryFile)
         {
                 if (queryFile != null) {

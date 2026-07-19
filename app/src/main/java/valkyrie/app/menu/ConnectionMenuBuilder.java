@@ -36,7 +36,11 @@ public class ConnectionMenuBuilder
                 redisItem.setGraphic(Assets.use(DbType.redis.getIcon()));
                 redisItem.setOnAction(e -> openConnectionDialog(DbType.redis));
 
-                newConnectionMenu.getItems().addAll(mysqlItem, postgresqlItem, sqliteItem, dmItem, redisItem);
+                MenuItem oceanbaseItem = new MenuItem(DbType.oceanbase.getAlias());
+                oceanbaseItem.setGraphic(Assets.use(DbType.oceanbase.getIcon()));
+                oceanbaseItem.setOnAction(e -> openConnectionDialog(DbType.oceanbase));
+
+                newConnectionMenu.getItems().addAll(mysqlItem, postgresqlItem, sqliteItem, dmItem, redisItem, oceanbaseItem);
 
                 return newConnectionMenu;
         }

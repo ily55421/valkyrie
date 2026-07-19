@@ -31,6 +31,7 @@ public class FavoriteRepository
                 private List<String> path;
                 private String objectName;
                 private String type; // table/view/query
+                private Integer slot; // 1~9, null=unassigned
         }
 
         private static List<Favorite> cache = new ArrayList<>();
@@ -98,5 +99,52 @@ public class FavoriteRepository
                 return cache.stream().anyMatch(f ->
                         f.getConnection().equals(connection)
                                 && f.getObjectName().equals(objectName));
+        }
+
+        // ===== v1.2 slot 方法 =====
+
+        public static Favorite getBySlot(int slot)
+        {
+                return cache.stream()
+                        .filter(f -> f.getSlot() != null && f.getSlot() == slot)
+                        .findFirst().orElse(null);
+        }
+
+        public static void assignSlot(String connection, String objectName, int slot)
+        {
+                // Clear old slot occupant
+                for (Favorite f : cache) {
+                        if (f.getSlot() != null && f.getSlot() == slot) {
+                                f.setSlot(null);
+                        }
+                }
+                // Assign to matching favorite
+                for (Favorite f : cache) {
+                        if (f.getConnection().equals(connection) && f.getObjectName().equals(objectName)) {
+                                f.setSlot(slot);
+                                break;
+                        }
+                }
+                save();
+        }
+
+        public static void clearSlot(int slot)
+        {
+                cache.stream()
+                        .filter(f -> f.getSlot() != null && f.getSlot() == slot)
+                        .forEach(f -> f.setSlot(null));
+                save();
+        }
+
+        public static void clearAll()
+        {
+                cache.clear();
+                save();
+        }
+
+        public static void clearByConnection(String conn)
+        {
+                cache.removeIf(f -> f.getConnection().equals(conn));
+                save();
         }
 }

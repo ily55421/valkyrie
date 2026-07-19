@@ -3,6 +3,7 @@ package valkyrie.driver.api;
 import lombok.Getter;
 import valkyrie.driver.dm.DMDriver;
 import valkyrie.driver.mysql.MySQLDriver;
+import valkyrie.driver.oceanbase.OceanBaseDriver;
 import valkyrie.driver.postgresql.PostgresqlDriver;
 import valkyrie.driver.redis.RedisDriver;
 import valkyrie.driver.sqlite.SQLiteDriver;
@@ -21,6 +22,7 @@ public enum DbType
         sqlite("SQLite", "sqlite", "org.sqlite.JDBC", true),
         dm("达梦数据库", "dm2", "dm.jdbc.driver.DmDriver", true),
         redis("Redis", "redis", null, false),
+        oceanbase("OceanBase", "mysql", "com.mysql.cj.jdbc.Driver", true),
         ;
 
         private final String alias;
@@ -49,6 +51,7 @@ public enum DbType
                         case sqlite -> new SQLiteDriver(dataSource);
                         case dm -> new DMDriver(dataSource);
                         case redis -> new RedisDriver(dataSource);
+                        case oceanbase -> new OceanBaseDriver(dataSource);
                 };
         }
 }

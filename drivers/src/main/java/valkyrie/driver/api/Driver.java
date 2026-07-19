@@ -840,4 +840,64 @@ public abstract class Driver implements SQLExecutor
                 if (taskQueue.containsKey(jobId))
                         Captor.call(() -> taskQueue.remove(jobId).cancel());
         }
+
+        // ===== v1.2 扩展：ER 图外键 =====
+
+        /**
+         * 获取表的外键引用关系（通用 JDBC 实现，失败静默降级返回空列表）
+         */
+        public List<ForeignKeyInfo> getImportedKeys(Session session, String table)
+        {
+                try (var conn = getConnection(session)) {
+                        var md = conn.getMetaData();
+                        try (var rs = md.getImportedKeys(null, null, table)) {
+                                List<ForeignKeyInfo> list = new ArrayList<>();
+                                while (rs.next()) {
+                                        list.add(new ForeignKeyInfo(
+                                                rs.getString("FKTABLE_NAME"),
+                                                rs.getString("FKCOLUMN_NAME"),
+                                                rs.getString("PKTABLE_NAME"),
+                                                rs.getString("PKCOLUMN_NAME")
+                                        ));
+                                }
+                                return list;
+                        }
+                } catch (Exception e) {
+                        return List.of();
+                }
+        }
+
+        // ===== v1.2 扩展：服务器监控 =====
+
+        /**
+         * 进程列表
+         */
+        public List<ProcessInfo> getProcessList(Session session)
+        {
+                throw new UnsupportedOperationException("getProcessList not supported");
+        }
+
+        /**
+         * 服务器状态
+         */
+        public Map<String, String> getServerStatus(Session session)
+        {
+                throw new UnsupportedOperationException("getServerStatus not supported");
+        }
+
+        /**
+         * 服务器变量
+         */
+        public Map<String, String> getServerVariables(Session session)
+        {
+                throw new UnsupportedOperationException("getServerVariables not supported");
+        }
+
+        /**
+         * 结束进程
+         */
+        public void killProcess(Session session, long processId)
+        {
+                throw new UnsupportedOperationException("killProcess not supported");
+        }
 }

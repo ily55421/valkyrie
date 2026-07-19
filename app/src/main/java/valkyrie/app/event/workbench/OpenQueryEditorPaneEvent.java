@@ -18,12 +18,21 @@ public class OpenQueryEditorPaneEvent extends OpenTabEvent
 {
         private final QueryFile scriptFile;
         private final UIQueryDynamicNode queryDynamicNode;
+        private final String content;
+        private final String suggestedName;
 
         public OpenQueryEditorPaneEvent(UIQueryDynamicNode owner)
         {
+                this(owner, null, null);
+        }
+
+        public OpenQueryEditorPaneEvent(UIQueryDynamicNode owner, String content, String suggestedName)
+        {
                 super(owner);
                 this.queryDynamicNode = owner;
-                scriptFile = owner != null ? owner.getQueryFile() : null;
+                this.scriptFile = owner != null ? owner.getQueryFile() : null;
+                this.content = content;
+                this.suggestedName = suggestedName;
         }
 
         @Override
@@ -36,6 +45,13 @@ public class OpenQueryEditorPaneEvent extends OpenTabEvent
         public Node createPane(Tab tab)
         {
                 tab.setGraphic(Assets.use("sql"));
-                return new QueryEditor(tab, scriptFile);
+                QueryEditor editor = new QueryEditor(tab, scriptFile);
+                if (content != null) {
+                        editor.setContent(content);
+                }
+                if (suggestedName != null) {
+                        tab.setText(suggestedName);
+                }
+                return editor;
         }
 }

@@ -7,6 +7,7 @@ import valkyrie.driver.api.PooledDataSource;
 import valkyrie.driver.api.VkDataSource;
 import valkyrie.driver.dm.DMDriver;
 import valkyrie.driver.mysql.MySQLDriver;
+import valkyrie.driver.oceanbase.OceanBaseDriver;
 import valkyrie.driver.postgresql.PostgresqlDriver;
 import valkyrie.driver.redis.RedisDataSource;
 import valkyrie.driver.redis.RedisDriver;
@@ -93,6 +94,19 @@ public final class BuiltinDrivers
                         "PING",
                         false,
                         (config, dialect) -> new RedisDriver(new RedisDataSource(config))
+                ));
+
+                // OceanBase (MySQL 兼容模式)
+                DriverRegistry.register(new DriverRegistry.DriverDescriptor(
+                        DbType.oceanbase,
+                        "OceanBase",
+                        "oceanbase",
+                        "com.mysql.cj.jdbc.Driver",
+                        "jdbc:mysql://{host}:{port}/{database}?useSSL=false&serverTimezone={timezone}",
+                        2883,
+                        "SELECT 1 FROM DUAL",
+                        true,
+                        (config, dialect) -> new OceanBaseDriver(createDataSource(config))
                 ));
 
                 initialized = true;
